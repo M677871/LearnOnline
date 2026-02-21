@@ -3,6 +3,15 @@ target/
 !**/src/main/**/target/
 !**/src/test/**/target/
 
+# Ignore IDE and build files
+.idea/
+.vscode/
+*.iml
+.classpath
+.project
+.settings/
+out/
+
 ### IntelliJ IDEA ###
 .idea/modules.xml
 .idea/jarRepositories.xml
@@ -36,3 +45,5 @@ build/
 
 ### Mac OS ###
 .DS_Store
+
+.idea

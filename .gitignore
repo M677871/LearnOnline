@@ -1,4 +1,4 @@
-# IDE and editor files
+# ───────────── IDE / Editor ─────────────
 .idea/
 .vscode/
 *.iml
@@ -7,3 +7,42 @@
 .settings/
 .project
 .classpath
+.factorypath
+.springBeans
+.sts4-cache
+.apt_generated
+*.swp
+*~
+
+# ───────────── Build / Output ──────────
+target/
+build/
+out/
+bin/
+.gradle/
+!**/src/main/**/target/
+!**/src/test/**/target/
+!.mvn/wrapper/maven-wrapper.jar
+
+# ───────────── Secrets / Env ───────────
+.env
+.env.*
+**/.env
+**/.env.*
+**/application*.yml
+**/application*.yaml
+
+# ───────────── OS Junk ─────────────────
+.DS_Store
+Thumbs.db
+Desktop.ini
+ehthumbs.db
+
+# ───────────── Logs ────────────────────
+*.log
+logs/
+
+# ───────────── Misc ────────────────────
+*.bak
+*.tmp
+*.orig
