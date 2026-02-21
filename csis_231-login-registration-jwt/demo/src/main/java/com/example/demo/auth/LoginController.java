@@ -46,7 +46,10 @@ public class LoginController {
             String p = password.getText() == null ? "" : password.getText().trim();
             if (u.isEmpty() || p.isEmpty()) { AlertUtils.warn("Please enter username and password."); return; }
 
+            long t0 = System.currentTimeMillis();
             AuthResponse res = authApi.login(new LoginRequest(u, p));
+            System.out.println("[TIMING] authApi.login() round-trip: "
+                    + (System.currentTimeMillis() - t0) + " ms");
 
             if (res != null && res.isOtpRequired()) {
                 TempAuth.username = u;

@@ -53,10 +53,15 @@ public class AuthController {
 
     @PostMapping("/login")
     public ResponseEntity<?> login(@Valid @RequestBody LoginRequest request) {
+        long controllerStart = System.currentTimeMillis();
         try {
             AuthResponse resp = authService.login(request);
+            log.info("[TIMING] POST /api/auth/login completed in {} ms",
+                    System.currentTimeMillis() - controllerStart);
             return ResponseEntity.ok(resp); // no-OTP case (if you ever disable OTP)
         } catch (OtpRequiredException e) {
+            log.info("[TIMING] POST /api/auth/login (OTP required) completed in {} ms",
+                    System.currentTimeMillis() - controllerStart);
             // when OTP is required: 202 (no token)
             return ResponseEntity.status(HttpStatus.ACCEPTED)
                     .body(Map.of(

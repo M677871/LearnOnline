@@ -16,6 +16,7 @@ import java.net.SocketTimeoutException;
 import java.net.UnknownHostException;
 import java.time.Instant;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ThreadLocalRandom;
 
 /**
@@ -95,8 +96,9 @@ public class OtpService {
         if (ttlMinutes <= 0) {
             throw new BadRequestException("OTP TTL must be positive");
         }
-        List<OtpCode> actives = repo.findActiveByUserIdAndPurpose(user.getId(), purpose, Instant.now());
+        long t0 = System.currentTimeMillis();
 
+        List<OtpCode> actives = repo.findActiveByUserIdAndPurpose(user.getId(), purpose, Instant.now());
         actives.forEach(c -> c.setConsumedAt(Instant.now()));
 
         // Generate 6-digit code
@@ -111,25 +113,36 @@ public class OtpService {
                 .build();
         repo.save(entity);
 
-        // Email
-        try {
-            if (from != null && !from.isBlank() && user.getEmail() != null) {
-                SimpleMailMessage msg = new SimpleMailMessage();
-                msg.setFrom(from);
-                msg.setTo(user.getEmail());
-                msg.setSubject(subject);
-                msg.setText(body != null ? body : ("Your one-time code is: " + code + " (valid " + ttlMinutes + " minutes)"));
-                mailSender.send(msg);
-            }
-        } catch (Exception ex) {
-            log.warn("Failed to send OTP email to {}: {}", user.getEmail(), ex.toString());
-            if (isConnectivityIssue(ex)) {
-                throw new BadRequestException("No internet connection. Unable to send verification email.");
-            }
-            throw new BadRequestException("Could not send verification email. Please try again later.");
+        long dbDone = System.currentTimeMillis();
+        log.info("[TIMING] OTP DB ops (consume old + save new) took {} ms", dbDone - t0);
+
+        // Email — fire async so the HTTP response isn't blocked by the SMTP handshake.
+        // The OTP is already persisted above, so it is safe even if the email is slightly delayed.
+        final String emailTo = user.getEmail();
+        final String emailText = body != null ? body
+                : ("Your one-time code is: " + code + " (valid " + ttlMinutes + " minutes)");
+        if (from != null && !from.isBlank() && emailTo != null) {
+            CompletableFuture.runAsync(() -> {
+                long emailStart = System.currentTimeMillis();
+                try {
+                    SimpleMailMessage msg = new SimpleMailMessage();
+                    msg.setFrom(from);
+                    msg.setTo(emailTo);
+                    msg.setSubject(subject);
+                    msg.setText(emailText);
+                    mailSender.send(msg);
+                    log.info("[TIMING] OTP email sent to {} in {} ms", emailTo,
+                            System.currentTimeMillis() - emailStart);
+                } catch (Exception ex) {
+                    log.warn("[TIMING] OTP email to {} FAILED after {} ms: {}", emailTo,
+                            System.currentTimeMillis() - emailStart, ex.toString());
+                }
+            });
         }
 
-        log.info("OTP for user={} purpose={} CODE={}", user.getUsername(), purpose, code);
+        log.info("[TIMING] OTP createAndSend() returning in {} ms (email fires in background)",
+                System.currentTimeMillis() - t0);
+        log.info("OTP created: user={} purpose={}", user.getUsername(), purpose);
         return code;
     }
 

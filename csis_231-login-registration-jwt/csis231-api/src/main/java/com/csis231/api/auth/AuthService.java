@@ -10,6 +10,7 @@ import com.csis231.api.otp.OtpVerifyRequest;
 import com.csis231.api.user.User;
 import com.csis231.api.user.UserRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -30,6 +31,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class AuthService {
 
     private final AuthenticationManager authenticationManager;
@@ -56,26 +58,37 @@ public class AuthService {
      */
 
     public AuthResponse login(LoginRequest req) {
+        long loginStart = System.currentTimeMillis();
         if (req == null || req.getUsername() == null || req.getUsername().isBlank()
                 || req.getPassword() == null || req.getPassword().isBlank()) {
             throw new BadRequestException("Username and password are required");
         }
 
+        long t0 = System.currentTimeMillis();
         Authentication auth = authenticationManager.authenticate(
                 new UsernamePasswordAuthenticationToken(req.getUsername(), req.getPassword())
         );
+        log.info("[TIMING] AuthenticationManager.authenticate() took {} ms",
+                System.currentTimeMillis() - t0);
+
         if (auth == null || !auth.isAuthenticated()) {
             throw new BadCredentialsException("Invalid username or password");
         }
 
+        t0 = System.currentTimeMillis();
         User user = userRepository.findByUsername(req.getUsername())
                 .orElseGet(() -> userRepository.findByEmail(req.getUsername())
                         .orElseThrow(() -> new BadCredentialsException("Invalid username or password")));
+        log.info("[TIMING] User lookup took {} ms", System.currentTimeMillis() - t0);
 
         // Always require OTP for login (or gate by a flag user.isTwoFactorEnabled())
         boolean requiresLoginOtp = true;
         if (requiresLoginOtp) {
+            t0 = System.currentTimeMillis();
             otpService.createAndSend(user, OtpPurposes.LOGIN_2FA);
+            log.info("[TIMING] otpService.createAndSend() took {} ms", System.currentTimeMillis() - t0);
+            log.info("[TIMING] AuthService.login() total took {} ms",
+                    System.currentTimeMillis() - loginStart);
             // Important: do not return a JWT here.
             throw new OtpRequiredException(user.getUsername());
         }
