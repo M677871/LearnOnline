@@ -48,13 +48,12 @@ This project is explicitly designed to match the **CSIS 231 Final Project requir
 **Monorepo structure:**
 
 ```text
-csis-231-project/
-└── csis_231-login-registration-jwt/
-    ├── csis231-api/          # Spring Boot backend (REST API + security)
-    └── demo/                 # JavaFX 17 client (FXML + 2D/3D visualizations)
+LearnOnline/
+├── learnonline-api/          # Spring Boot backend (REST API + security)
+└── learnonline-desktop/      # JavaFX 17 client (FXML + 2D/3D visualizations)
 ```
 
-### Backend (Spring Boot – `csis231-api`)
+### Backend (Spring Boot – `learnonline-api`)
 
 - **Layered architecture**:
     - `controller` – REST endpoints.
@@ -82,11 +81,11 @@ csis-231-project/
     - `User – Enrollment – Course`
     - `Course – Quiz – Result`.
 
-### Frontend (JavaFX – `demo`)
+### Frontend (JavaFX – `learnonline-desktop`)
 
 - JavaFX 17 application with:
-    - **FXML views** under `demo/src/main/resources/com/example/demo`.
-    - Controllers under `demo/src/main/java/com/example/demo`.
+    - **FXML views** under `learnonline-desktop/src/main/resources/com/example/demo`.
+    - Controllers under `learnonline-desktop/src/main/java/com/example/demo`.
     - Shared stylesheet: `styles.css` (dark theme, buttons, cards, tabs, 2D/3D viz styles).
 - Navigation:
     - `Launcher` + `HelloApplication` handle scene switching and role-based routing.
@@ -215,8 +214,8 @@ csis-231-project/
 
 **Location:**
 
-- `demo/src/main/java/com/example/demo/graphics/GraphicsPlaygroundController.java`
-- `demo/src/main/resources/com/example/demo/graphics/graphics_playground.fxml`
+- `learnonline-desktop/src/main/java/com/example/demo/graphics/GraphicsPlaygroundController.java`
+- `learnonline-desktop/src/main/resources/com/example/demo/graphics/graphics_playground.fxml`
 
 ### Layout
 
@@ -253,10 +252,10 @@ csis-231-project/
 
 ## 7. Project Structure (Detailed)
 
-### Backend – `csis231-api`
+### Backend – `learnonline-api`
 
 ```text
-csis231-api/
+learnonline-api/
 ├── src/main/java/com/csis231/api
 │   ├── auth/           # Login, register, forgot/reset password, JWT
 │   ├── otp/            # OTP verify/request endpoints
@@ -274,10 +273,10 @@ csis231-api/
     └── application.yml
 ```
 
-### JavaFX Client – `demo`
+### JavaFX Client – `learnonline-desktop`
 
 ```text
-demo/
+learnonline-desktop/
 ├── src/main/java/com/example/demo
 │   ├── auth/          # Login, register, forgot password, OTP, reset controllers
 │   ├── common/        # ApiClient, ApiException, ErrorDialog, AlertUtils, SessionStore, TokenStore
@@ -433,8 +432,8 @@ Below are the main mappings from:
 ### 1) Clone the repository
 
 ```bash
-git clone https://github.com/M677871/csis-231-project.git
-cd csis-231-project/csis_231-login-registration-jwt
+git clone https://github.com/M677871/LearnOnline.git
+cd LearnOnline
 ```
 
 ### 2) Create the database
@@ -445,7 +444,7 @@ CREATE DATABASE csis_231_db;
 
 ### 3) Configure `application.yml`
 
-Create/edit: `csis231-api/src/main/resources/application.yml`:
+Create/edit: `learnonline-api/src/main/resources/application.yml`:
 
 ```yaml
 server:
@@ -503,7 +502,7 @@ mail:
 
 ### 4) Run the backend
 
-From `csis231-api`:
+From `learnonline-api`:
 
 ```bash
 mvn clean install
@@ -514,7 +513,7 @@ Backend will start on `http://localhost:8080` (unless overridden).
 
 ### 5) Run the JavaFX client
 
-From `demo`:
+From `learnonline-desktop`:
 
 ```bash
 mvn clean install
