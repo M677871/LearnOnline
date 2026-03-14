@@ -1,0 +1,7 @@
+.git
+target/*
+!target/*.jar
+node_modules
+*.log
+.idea
+.vscode
