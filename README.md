@@ -511,7 +511,84 @@ mvn spring-boot:run
 
 Backend will start on `http://localhost:8080` (unless overridden).
 
-### 5) Run the JavaFX client
+### 5) Run with Docker (Spring Boot + PostgreSQL)
+
+Files: `learnonline-api/Dockerfile`, `learnonline-api/docker-compose.yml`, `learnonline-api/.dockerignore`.
+
+Quick run (recommended when you already build the JAR on host):
+
+```powershell
+cd C:\dev\csis_231_project\learnonline-api
+# 1) Build executable JAR (host)
+.\mvnw.cmd clean package -DskipTests
+
+# 2) Build Docker images
+docker compose build
+
+# 3) Start API + PostgreSQL in background
+docker compose up -d
+
+# 4) Check logs (follow)
+docker compose logs -f --tail=100
+
+# 5) Stop containers
+docker compose down
+
+# 6) Stop and remove DB data volume (optional)
+docker compose down -v
+```
+
+#### Docker service configuration
+
+- The Compose file creates two services: `app` and `postgres`.
+- App container exposes `8080`.
+- PostgreSQL container exposes `5432`.
+- PostgreSQL credentials are set by Compose:
+    - `POSTGRES_DB=learnonline`
+    - `POSTGRES_USER=postgres`
+    - `POSTGRES_PASSWORD=postgres`
+- App uses environment variables for DB connection:
+    - `SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/learnonline`
+    - `SPRING_DATASOURCE_USERNAME=postgres`
+    - `SPRING_DATASOURCE_PASSWORD=postgres`
+- Compose includes a `healthcheck` for Postgres, and `app` depends on `postgres` with `service_healthy` so the API waits for DB readiness.
+
+How containers communicate:
+
+- Docker Compose creates a private network.
+- The app connects to PostgreSQL using the service name `postgres` as host.
+- Data is persisted in volume `postgres_data`.
+
+#### Access from another machine on the same network
+
+Use:
+
+```text
+http://HOST_IP:8080
+```
+
+Replace `HOST_IP` with the IP of the machine running Docker. On Windows, you can get it with:
+
+```powershell
+ipconfig
+```
+
+If needed, allow inbound TCP `8080` in the host firewall.
+
+#### Troubleshooting
+
+- If the app fails with `Unable to access jarfile /app/app.jar`:
+    - Build the JAR first: `.\mvnw.cmd clean package -DskipTests`.
+    - Verify it exists: `dir target\*.jar`.
+    - Ensure `.dockerignore` allows jar files in `target` (`target/*` and `!target/*.jar`).
+    - Rebuild without cache: `docker compose build --no-cache`.
+
+- Useful checks:
+    - `docker compose ps` to view service status.
+    - `docker compose logs -f` to stream logs.
+    - `docker exec -it learnonline-app sh` to inspect app container.
+
+### 6) Run the JavaFX client
 
 From `learnonline-desktop`:
 
