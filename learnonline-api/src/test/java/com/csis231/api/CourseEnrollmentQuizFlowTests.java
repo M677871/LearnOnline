@@ -1,15 +1,21 @@
 package com.csis231.api;
 
-import com.csis231.api.category.Category;
-import com.csis231.api.category.CategoryRepository;
-import com.csis231.api.course.Course;
-import com.csis231.api.course.CourseRequest;
-import com.csis231.api.course.CourseService;
-import com.csis231.api.enrollment.EnrollmentRequest;
-import com.csis231.api.enrollment.EnrollmentService;
-import com.csis231.api.quiz.*;
-import com.csis231.api.user.User;
-import com.csis231.api.user.UserRepository;
+import com.csis231.api.category.model.Category;
+import com.csis231.api.category.repository.CategoryRepository;
+import com.csis231.api.course.model.Course;
+import com.csis231.api.course.dto.CourseRequest;
+import com.csis231.api.course.service.CourseService;
+import com.csis231.api.enrollment.dto.EnrollmentRequest;
+import com.csis231.api.enrollment.service.EnrollmentService;
+import com.csis231.api.quiz.dto.QuizSubmissionRequest;
+
+import com.csis231.api.quiz.dto.*;
+import com.csis231.api.quiz.model.Quiz;
+import com.csis231.api.quiz.repository.AnswerOptionRepository;
+import com.csis231.api.quiz.repository.QuizQuestionRepository;
+import com.csis231.api.quiz.service.QuizService;
+import com.csis231.api.user.model.User;
+import com.csis231.api.user.repository.UserRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
