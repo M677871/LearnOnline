@@ -37,11 +37,11 @@ public class SecurityConfig {
         return config.getAuthenticationManager();
     }
 
-    // Central CORS config (edit origins to your frontend host later)
+    // Central CORS config
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration c = new CorsConfiguration();
-        c.setAllowedOriginPatterns(List.of("*")); // TODO: change to your frontend origin
+        c.setAllowedOriginPatterns(List.of("*"));
         c.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         c.setAllowedHeaders(List.of("*"));
         c.setExposedHeaders(List.of("Authorization"));
@@ -54,12 +54,11 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http
-                // you can keep global disable if you want; refresh remains public anyway
+
                 .csrf(csrf -> csrf.disable())
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
-                        // --- Public endpoints (unchanged + refresh added) ---
                         .requestMatchers("/api/auth/**").permitAll()             // login/register/otp/password/refresh
                         .requestMatchers("/api/auth/otp/**").permitAll()
                         .requestMatchers("/api/auth/password/forgot",
@@ -67,7 +66,7 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/api/courses/*/enrollments").authenticated()
                         .requestMatchers(HttpMethod.GET, "/api/courses/**").permitAll()
 
-                        // --- Role-scoped domains ---
+                        //  Role-scoped domains
                         .requestMatchers(HttpMethod.POST, "/api/courses/**").hasAnyRole("INSTRUCTOR", "ADMIN")
                         .requestMatchers(HttpMethod.PUT, "/api/courses/**").hasAnyRole("INSTRUCTOR", "ADMIN")
                         .requestMatchers(HttpMethod.DELETE, "/api/courses/**").hasAnyRole("INSTRUCTOR", "ADMIN")
@@ -77,16 +76,16 @@ public class SecurityConfig {
                         .requestMatchers("/api/materials/**", "/api/courses/*/materials").authenticated()
                         .requestMatchers("/api/quizzes/**").authenticated()
 
-                        // --- Role-scoped domains (unchanged) ---
+                        // Role-scoped domains (unchanged)
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")
                         .requestMatchers("/api/instructor/**").hasAnyRole("INSTRUCTOR", "ADMIN")
                         .requestMatchers("/api/student/**").hasAnyRole("STUDENT", "ADMIN")
 
-                        // --- Everything else requires auth ---
+                        //Everything else requires auth
                         .anyRequest().authenticated()
                 );
 
-        // Ensure the JWT filter runs before UsernamePasswordAuthenticationFilter
+        // to Ensure the JWT filter runs before UsernamePasswordAuthenticationFilter
         http.addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
