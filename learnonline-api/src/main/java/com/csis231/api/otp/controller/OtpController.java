@@ -4,6 +4,7 @@ import com.csis231.api.auth.dto.AuthResponse;
 import com.csis231.api.auth.service.AuthService;
 import com.csis231.api.otp.dto.OtpResendRequest;
 import com.csis231.api.otp.dto.OtpVerifyRequest;
+import com.csis231.api.otp.exception.OtpRequiredException;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -43,7 +44,7 @@ public class OtpController {
         try {
             AuthResponse resp = authService.verifyOtp(req); // issues JWT on success
             return ResponseEntity.ok(resp);
-        } catch (Exception e) {
+        } catch (OtpRequiredException e) {
             log.warn("OTP verify failed: {}", e.getMessage());
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                     .body(Map.of("message", "Invalid email or code"));
