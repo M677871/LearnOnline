@@ -4,8 +4,10 @@ package com.csis231.api.auth.service;
 import com.csis231.api.auth.dto.AuthResponse;
 import com.csis231.api.auth.dto.ForgotPasswordRequest;
 import com.csis231.api.auth.dto.LoginRequest;
+import com.csis231.api.auth.dto.RegisterRequest;
 import com.csis231.api.auth.dto.ResetPasswordRequest;
 import com.csis231.api.common.exception.BadRequestException;
+import com.csis231.api.common.exception.ConflictException;
 import com.csis231.api.common.exception.UnauthorizedException;
 import com.csis231.api.jwt.JwtUtil;
 import com.csis231.api.otp.model.OtpPurposes;
@@ -42,6 +44,32 @@ public class AuthService {
     private final PasswordEncoder passwordEncoder;
     private final JwtUtil jwtUtil;
     private final OtpService otpService;
+
+    /**
+     * Registers a user with uniqueness checks and encoded password.
+     */
+    @Transactional
+    public void register(RegisterRequest req) {
+        if (req == null || req.getUsername() == null || req.getUsername().isBlank()
+                || req.getEmail() == null || req.getEmail().isBlank()
+                || req.getPassword() == null || req.getPassword().isBlank()) {
+            throw new BadRequestException("Username, email and password are required");
+        }
+        if (userRepository.findByUsername(req.getUsername()).isPresent()) {
+            throw new ConflictException("Username already exists");
+        }
+        if (userRepository.findByEmail(req.getEmail()).isPresent()) {
+            throw new ConflictException("Email already exists");
+        }
+
+        User u = new User();
+        u.setUsername(req.getUsername());
+        u.setEmail(req.getEmail());
+        u.setPassword(passwordEncoder.encode(req.getPassword()));
+        u.setFirstName(req.getFirstName());
+        u.setLastName(req.getLastName());
+        userRepository.save(u);
+    }
 
     /**
      * Authenticates a user with username and password and optionally

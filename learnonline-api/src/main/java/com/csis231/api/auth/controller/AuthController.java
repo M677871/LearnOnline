@@ -4,19 +4,15 @@ package com.csis231.api.auth.controller;
 
 import com.csis231.api.auth.dto.*;
 import com.csis231.api.auth.service.AuthService;
-import com.csis231.api.common.exception.ConflictException;
+import com.csis231.api.user.model.User;
 import com.csis231.api.common.exception.UnauthorizedException;
 import com.csis231.api.otp.exception.OtpRequiredException;
 
-import com.csis231.api.user.model.User;
-import com.csis231.api.user.repository.UserRepository;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.BadCredentialsException;
-import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Map;
@@ -32,12 +28,9 @@ import java.util.Map;
 @RestController
 @RequestMapping("/api/auth")
 @RequiredArgsConstructor
-@Slf4j
 public class AuthController {
 
     private final AuthService authService;
-    private final UserRepository userRepository;
-    private final PasswordEncoder passwordEncoder;
 
     /**
      * Authenticates a user using username and password.
@@ -69,9 +62,6 @@ public class AuthController {
                             "purpose", "LOGIN_2FA",
                             "username", e.getUsername()
                     ));
-        } catch (Exception e) {
-            log.error("Login error", e);
-            throw e;
         }
     }
 
@@ -91,27 +81,8 @@ public class AuthController {
 
     @PostMapping("/register")
     public ResponseEntity<?> register(@Valid @RequestBody RegisterRequest req) {
-        try {
-            if (userRepository.findByUsername(req.getUsername()).isPresent()) {
-                throw new ConflictException("Username already exists");
-            }
-            if (userRepository.findByEmail(req.getEmail()).isPresent()) {
-                throw new ConflictException("Email already exists");
-            }
-
-            User u = new User();
-            u.setUsername(req.getUsername());
-            u.setEmail(req.getEmail());
-            u.setPassword(passwordEncoder.encode(req.getPassword()));
-            try { u.setFirstName(req.getFirstName()); } catch (Throwable ignore) {}
-            try { u.setLastName(req.getLastName()); }  catch (Throwable ignore) {}
-
-            userRepository.save(u);
-            return ResponseEntity.ok(Map.of("message", "Registered"));
-        } catch (Exception e) {
-            log.error("Register error", e);
-            throw e;
-        }
+        authService.register(req);
+        return ResponseEntity.ok(Map.of("message", "Registered"));
     }
 
     /**
@@ -134,9 +105,6 @@ public class AuthController {
         } catch (UnauthorizedException | BadCredentialsException e) {
             // avoid leaking which emails exist
             return ResponseEntity.ok(Map.of("message", "If the email exists, an OTP has been sent"));
-        } catch (Exception e) {
-            log.error("Forgot password error", e);
-            throw e;
         }
     }
 
@@ -154,12 +122,7 @@ public class AuthController {
     @PostMapping("/password/reset")
     public ResponseEntity<?> resetPassword(@Valid @RequestBody ResetPasswordRequest req)
     {
-        try {
-            authService.resetPassword(req);
-            return ResponseEntity.ok(Map.of("message", "Password updated"));
-        } catch (Exception e) {
-            log.error("Reset password error", e);
-            throw e;
-        }
+        authService.resetPassword(req);
+        return ResponseEntity.ok(Map.of("message", "Password updated"));
     }
 }
