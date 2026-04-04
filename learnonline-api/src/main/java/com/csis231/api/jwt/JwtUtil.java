@@ -2,11 +2,13 @@ package com.csis231.api.jwt;
 
 import io.jsonwebtoken.*;
 import io.jsonwebtoken.security.Keys;
+import jakarta.annotation.PostConstruct;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Component;
 
 import javax.crypto.SecretKey;
+import java.nio.charset.StandardCharsets;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
@@ -23,11 +25,23 @@ import java.util.function.Function;
 @Component
 public class JwtUtil {
 
-    @Value("${jwt.secret:mySecretKey}")
+    private static final int MIN_SECRET_BYTES = 32;
+
+    @Value("${jwt.secret}")
     private String secret;
 
     @Value("${jwt.expiration:86400000}")
     private Long expiration;
+
+    @PostConstruct
+    void validateSecretConfiguration() {
+        if (secret == null || secret.isBlank()) {
+            throw new IllegalStateException("jwt.secret must be configured");
+        }
+        if (secret.getBytes(StandardCharsets.UTF_8).length < MIN_SECRET_BYTES) {
+            throw new IllegalStateException("jwt.secret must be at least 32 bytes for HS256");
+        }
+    }
 
     /**
      * Returns the HMAC signing key derived from the configured secret.
@@ -36,7 +50,7 @@ public class JwtUtil {
      */
 
     private SecretKey getSigningKey() {
-        return Keys.hmacShaKeyFor(secret.getBytes());
+        return Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
     }
 
     /**

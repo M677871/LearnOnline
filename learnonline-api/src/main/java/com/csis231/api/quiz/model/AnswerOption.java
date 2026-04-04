@@ -1,6 +1,5 @@
 package com.csis231.api.quiz.model;
 
-import com.csis231.api.quiz.model.QuizQuestion;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotBlank;
 import lombok.*;

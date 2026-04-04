@@ -16,12 +16,10 @@ import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.net.ConnectException;
-import java.net.SocketTimeoutException;
-import java.net.UnknownHostException;
 import java.time.Instant;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ThreadLocalRandom;
 
 /**
@@ -39,8 +37,12 @@ import java.util.concurrent.ThreadLocalRandom;
 @Slf4j
 public class OtpService {
 
+    private static final int MAX_FAILED_VERIFY_ATTEMPTS = 5;
+    private static final long FAILED_ATTEMPT_LOCK_MINUTES = 10;
+
     private final OtpCodeRepository repo;
     private final JavaMailSender mailSender;
+    private final ConcurrentHashMap<String, AttemptState> failedAttemptByUserAndPurpose = new ConcurrentHashMap<>();
 
     @Value("${mail.from:}")
     private String from;
@@ -115,6 +117,7 @@ public class OtpService {
                 .expiresAt(Instant.now().plusSeconds(ttlMinutes * 60L))
                 .build();
         repo.save(entity);
+        failedAttemptByUserAndPurpose.remove(attemptKey(user, purpose));
 
         // Email — fire async so the HTTP response isn't blocked by the SMTP handshake.
         // The OTP is already persisted above, so it is safe even if the email is slightly delayed.
@@ -161,6 +164,15 @@ public class OtpService {
             throw new BadRequestException("Purpose and code are required");
         }
         Instant now = Instant.now();
+        String attemptKey = attemptKey(user, purpose);
+
+        AttemptState state = failedAttemptByUserAndPurpose.get(attemptKey);
+        if (state != null && state.lockedUntil() != null && now.isBefore(state.lockedUntil())) {
+            throw new OtpRequiredException("Too many invalid OTP attempts. Please wait and request a new OTP.");
+        }
+        if (state != null && state.lockedUntil() != null && now.isAfter(state.lockedUntil())) {
+            failedAttemptByUserAndPurpose.remove(attemptKey);
+        }
 
         OtpCode latest = repo.findTopByUser_IdAndPurposeOrderByIdDesc(user.getId(), purpose)
                 .orElseThrow(() -> new OtpRequiredException("Invalid email or code"));
@@ -170,29 +182,31 @@ public class OtpService {
                 || !latest.getCode().equals(code);
 
         if (invalid) {
+            registerFailedAttempt(attemptKey, now);
             throw new OtpRequiredException("Invalid email or code");
         }
 
         latest.setConsumedAt(now);
         repo.save(latest);
+        failedAttemptByUserAndPurpose.remove(attemptKey);
     }
 
-    /**
-     * Attempts to classify whether a mail failure was caused by connectivity loss.
-     */
-    private boolean isConnectivityIssue(Throwable ex) {
-        Throwable cause = ex;
-        while (cause != null) {
-            if (cause instanceof UnknownHostException
-                    || cause instanceof ConnectException
-                    || cause instanceof SocketTimeoutException) {
-                return true;
-            }
-            cause = cause.getCause();
-        }
-        return false;
+    private void registerFailedAttempt(String key, Instant now) {
+        failedAttemptByUserAndPurpose.compute(key, (ignored, existing) -> {
+            int attempts = existing == null ? 1 : existing.attempts() + 1;
+            Instant lockUntil = attempts >= MAX_FAILED_VERIFY_ATTEMPTS
+                    ? now.plusSeconds(FAILED_ATTEMPT_LOCK_MINUTES * 60)
+                    : null;
+            return new AttemptState(attempts, lockUntil);
+        });
     }
 
+    private static String attemptKey(User user, String purpose) {
+        return user.getId() + ":" + purpose;
+    }
+
+    private record AttemptState(int attempts, Instant lockedUntil) {
+    }
 
 
 
