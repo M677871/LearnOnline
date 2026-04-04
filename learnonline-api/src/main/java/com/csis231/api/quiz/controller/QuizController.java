@@ -2,11 +2,11 @@ package com.csis231.api.quiz.controller;
 
 import com.csis231.api.common.exception.ResourceNotFoundException;
 import com.csis231.api.common.exception.UnauthorizedException;
+import com.csis231.api.common.service.AuthenticatedUserService;
 import com.csis231.api.quiz.dto.*;
 import com.csis231.api.quiz.mapper.QuizMapper;
 import com.csis231.api.quiz.service.QuizService;
 import com.csis231.api.user.model.User;
-import com.csis231.api.user.repository.UserRepository;
 import com.csis231.api.quiz.model.Quiz;
 
 import jakarta.validation.Valid;
@@ -25,7 +25,7 @@ import java.util.List;
 @RequiredArgsConstructor
 public class QuizController {
     private final QuizService quizService;
-    private final UserRepository userRepository;
+    private final AuthenticatedUserService authenticatedUserService;
 
     /**
      * Creates a new quiz for the specified course.
@@ -37,7 +37,7 @@ public class QuizController {
     @PostMapping
     public ResponseEntity<QuizSummaryDto> create(@Valid @RequestBody QuizCreateRequest request,
                                                  Authentication authentication) {
-        User actor = resolveUser(authentication);
+        User actor = authenticatedUserService.require(authentication);
         Quiz quiz = quizService.createQuiz(request, actor);
         QuizSummaryDto dto = QuizMapper.toSummaryDto(quiz, 0);
         return ResponseEntity.status(201).body(dto);
@@ -55,7 +55,7 @@ public class QuizController {
     public ResponseEntity<Void> addQuestions(@PathVariable Long quizId,
                                              @Valid @RequestBody List<QuizQuestionRequest> questions,
                                              Authentication authentication) {
-        User actor = resolveUser(authentication);
+        User actor = authenticatedUserService.require(authentication);
         quizService.addQuestions(quizId, questions, actor);
         return ResponseEntity.status(201).build();
     }
@@ -69,7 +69,7 @@ public class QuizController {
      */
     @GetMapping("/{quizId}")
     public QuizDetailDto get(@PathVariable Long quizId, Authentication authentication) {
-        User viewer = resolveUser(authentication);
+        User viewer = authenticatedUserService.require(authentication);
         return quizService.getQuizDetail(quizId, viewer);
     }
 
@@ -85,7 +85,7 @@ public class QuizController {
     public QuizSubmissionResponse submit(@PathVariable Long quizId,
                                          @Valid @RequestBody QuizSubmissionRequest request,
                                          Authentication authentication) {
-        User actor = resolveUser(authentication);
+        User actor = authenticatedUserService.require(authentication);
         return quizService.submitQuiz(quizId, request, actor);
     }
 
@@ -98,7 +98,7 @@ public class QuizController {
      */
     @GetMapping("/{quizId}/results")
     public List<QuizResultDto> results(@PathVariable Long quizId, Authentication authentication) {
-        User actor = resolveUser(authentication);
+        User actor = authenticatedUserService.require(authentication);
         return quizService.resultsForQuiz(quizId, actor);
     }
 
@@ -111,7 +111,7 @@ public class QuizController {
      */
     @GetMapping("/{quizId}/my-result")
     public QuizResultDto myResult(@PathVariable Long quizId, Authentication authentication) {
-        User actor = resolveUser(authentication);
+        User actor = authenticatedUserService.require(authentication);
         return quizService.latestResultForUser(quizId, actor);
     }
 
@@ -124,16 +124,8 @@ public class QuizController {
      */
     @DeleteMapping("/{quizId}")
     public ResponseEntity<Void> delete(@PathVariable Long quizId, Authentication authentication) {
-        User actor = resolveUser(authentication);
+        User actor = authenticatedUserService.require(authentication);
         quizService.deleteQuiz(quizId, actor);
         return ResponseEntity.noContent().build();
-    }
-
-    private User resolveUser(Authentication authentication) {
-        if (authentication == null || authentication.getName() == null) {
-            throw new UnauthorizedException("Authentication required");
-        }
-        return userRepository.findByUsername(authentication.getName())
-                .orElseThrow(() -> new ResourceNotFoundException("User not found: " + authentication.getName()));
     }
 }

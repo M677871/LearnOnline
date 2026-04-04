@@ -1,8 +1,7 @@
 package com.csis231.api.course.controller;
 
 import com.csis231.api.common.dto.PagedResponse;
-import com.csis231.api.common.exception.ResourceNotFoundException;
-import com.csis231.api.common.exception.UnauthorizedException;
+import com.csis231.api.common.service.AuthenticatedUserService;
 import com.csis231.api.course.dto.CourseDetailDto;
 import com.csis231.api.course.dto.CourseDto;
 import com.csis231.api.course.dto.CourseRequest;
@@ -10,7 +9,6 @@ import com.csis231.api.course.mapper.CourseMapper;
 import com.csis231.api.course.model.Course;
 import com.csis231.api.course.service.CourseService;
 import com.csis231.api.user.model.User;
-import com.csis231.api.user.repository.UserRepository;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
@@ -28,7 +26,7 @@ import org.springframework.web.bind.annotation.*;
 public class CourseController {
 
     private final CourseService courseService;
-    private final UserRepository userRepository;
+    private final AuthenticatedUserService authenticatedUserService;
 
     /**
      * Retrieves a paginated list of published courses, optionally filtered by category or search term.
@@ -59,7 +57,7 @@ public class CourseController {
      */
     @GetMapping("/{id}")
     public CourseDetailDto detail(@PathVariable Long id, Authentication authentication) {
-        User viewer = currentUserOrNull(authentication);
+        User viewer = authenticatedUserService.optional(authentication);
         return courseService.getCourseDetail(id, viewer);
     }
 
@@ -73,7 +71,7 @@ public class CourseController {
     @PostMapping
     public ResponseEntity<CourseDto> create(@Valid @RequestBody CourseRequest request,
                                             Authentication authentication) {
-        User actor = resolveUser(authentication);
+        User actor = authenticatedUserService.require(authentication);
         Course created = courseService.createCourse(request, actor);
         return ResponseEntity.status(201).body(CourseMapper.toDto(created));
     }
@@ -90,7 +88,7 @@ public class CourseController {
     public CourseDto update(@PathVariable Long id,
                             @Valid @RequestBody CourseRequest request,
                             Authentication authentication) {
-        User actor = resolveUser(authentication);
+        User actor = authenticatedUserService.require(authentication);
         Course updated = courseService.updateCourse(id, request, actor);
         return CourseMapper.toDto(updated);
     }
@@ -104,23 +102,8 @@ public class CourseController {
      */
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> delete(@PathVariable Long id, Authentication authentication) {
-        User actor = resolveUser(authentication);
+        User actor = authenticatedUserService.require(authentication);
         courseService.deleteCourse(id, actor);
         return ResponseEntity.noContent().build();
-    }
-
-    private User resolveUser(Authentication authentication) {
-        if (authentication == null || authentication.getName() == null) {
-            throw new UnauthorizedException("Authentication required");
-        }
-        return userRepository.findByUsername(authentication.getName())
-                .orElseThrow(() -> new ResourceNotFoundException("User not found: " + authentication.getName()));
-    }
-
-    private User currentUserOrNull(Authentication authentication) {
-        if (authentication == null || authentication.getName() == null) {
-            return null;
-        }
-        return userRepository.findByUsername(authentication.getName()).orElse(null);
     }
 }

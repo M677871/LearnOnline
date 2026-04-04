@@ -2,13 +2,13 @@ package com.csis231.api.coursematerial.controller;
 
 import com.csis231.api.common.exception.ResourceNotFoundException;
 import com.csis231.api.common.exception.UnauthorizedException;
+import com.csis231.api.common.service.AuthenticatedUserService;
 import com.csis231.api.coursematerial.mapper.CourseMaterialMapper;
 import com.csis231.api.coursematerial.dto.CourseMaterialDto;
 import com.csis231.api.coursematerial.dto.CourseMaterialRequest;
 import com.csis231.api.coursematerial.model.CourseMaterial;
 import com.csis231.api.coursematerial.service.CourseMaterialService;
 import com.csis231.api.user.model.User;
-import com.csis231.api.user.repository.UserRepository;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -25,7 +25,7 @@ import java.util.List;
 @RequiredArgsConstructor
 public class CourseMaterialController {
     private final CourseMaterialService materialService;
-    private final UserRepository userRepository;
+    private final AuthenticatedUserService authenticatedUserService;
 
     /**
      * Lists materials for a course that are visible to the current user.
@@ -36,7 +36,7 @@ public class CourseMaterialController {
      */
     @GetMapping("/courses/{courseId}/materials")
     public List<CourseMaterialDto> list(@PathVariable Long courseId, Authentication authentication) {
-        User viewer = resolveUser(authentication);
+        User viewer = authenticatedUserService.require(authentication);
         return materialService.mapToDto(materialService.listForViewer(courseId, viewer));
     }
 
@@ -52,7 +52,7 @@ public class CourseMaterialController {
     public ResponseEntity<CourseMaterialDto> create(@PathVariable Long courseId,
                                                     @Valid @RequestBody CourseMaterialRequest request,
                                                     Authentication authentication) {
-        User actor = resolveUser(authentication);
+        User actor = authenticatedUserService.require(authentication);
         CourseMaterial created = materialService.addMaterial(courseId, request, actor);
         return ResponseEntity.status(201).body(CourseMaterialMapper.toDto(created));
     }
@@ -66,16 +66,8 @@ public class CourseMaterialController {
      */
     @DeleteMapping("/materials/{id}")
     public ResponseEntity<Void> delete(@PathVariable Long id, Authentication authentication) {
-        User actor = resolveUser(authentication);
+        User actor = authenticatedUserService.require(authentication);
         materialService.deleteMaterial(id, actor);
         return ResponseEntity.noContent().build();
-    }
-
-    private User resolveUser(Authentication authentication) {
-        if (authentication == null || authentication.getName() == null) {
-            throw new UnauthorizedException("Authentication required");
-        }
-        return userRepository.findByUsername(authentication.getName())
-                .orElseThrow(() -> new ResourceNotFoundException("User not found: " + authentication.getName()));
     }
 }

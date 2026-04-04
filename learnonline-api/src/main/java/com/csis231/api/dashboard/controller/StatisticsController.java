@@ -2,10 +2,10 @@ package com.csis231.api.dashboard.controller;
 
 import com.csis231.api.common.exception.ResourceNotFoundException;
 import com.csis231.api.common.exception.UnauthorizedException;
+import com.csis231.api.common.service.AuthenticatedUserService;
 import com.csis231.api.dashboard.dto.ChartPoint;
 import com.csis231.api.dashboard.service.StatisticsService;
 import com.csis231.api.user.model.User;
-import com.csis231.api.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -23,7 +23,7 @@ import java.util.List;
 @RequiredArgsConstructor
 public class StatisticsController {
 
-    private final UserRepository userRepository;
+    private final AuthenticatedUserService authenticatedUserService;
     private final StatisticsService statisticsService;
 
     /**
@@ -36,11 +36,7 @@ public class StatisticsController {
      */
     @GetMapping("/courses/{courseId}/quiz-averages")
     public List<ChartPoint> quizAverages(@PathVariable Long courseId, Authentication authentication) {
-        if (authentication == null || authentication.getName() == null) {
-            throw new UnauthorizedException("Authentication required");
-        }
-        User actor = userRepository.findByUsername(authentication.getName())
-                .orElseThrow(() -> new ResourceNotFoundException("User not found: " + authentication.getName()));
+        User actor = authenticatedUserService.require(authentication);
         return statisticsService.quizAveragesForCourse(courseId, actor);
     }
 }
