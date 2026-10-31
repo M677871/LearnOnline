@@ -1,30 +1,27 @@
 package com.csis231.api.auth.controller;
 
-
-
-import com.csis231.api.auth.dto.*;
+import com.csis231.api.auth.dto.AuthResponse;
+import com.csis231.api.auth.dto.ForgotPasswordRequest;
+import com.csis231.api.auth.dto.LoginRequest;
+import com.csis231.api.auth.dto.OtpChallengeResponse;
+import com.csis231.api.auth.dto.OtpResendRequest;
+import com.csis231.api.auth.dto.OtpVerifyRequest;
+import com.csis231.api.auth.dto.RegisterRequest;
+import com.csis231.api.auth.dto.ResetPasswordRequest;
 import com.csis231.api.auth.service.AuthService;
-import com.csis231.api.user.model.User;
-import com.csis231.api.common.exception.UnauthorizedException;
-import com.csis231.api.otp.exception.OtpRequiredException;
-
+import com.csis231.api.common.dto.MessageResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
-import org.springframework.security.authentication.BadCredentialsException;
-import org.springframework.web.bind.annotation.*;
-
-import java.util.Map;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.ResponseStatus;
+import org.springframework.web.bind.annotation.RestController;
 
 /**
- * REST controller exposing authentication-related endpoints for the
- * online learning platform.
- *
- * <p>Provides operations for login (with optional OTP-based 2FA),
- * user registration and password reset via e-mail OTP codes.</p>
+ * Public authentication endpoints. See {@link AuthService} for the login flow.
  */
-
 @RestController
 @RequestMapping("/api/auth")
 @RequiredArgsConstructor
@@ -33,96 +30,41 @@ public class AuthController {
     private final AuthService authService;
 
     /**
-     * Authenticates a user using username and password.
-     *
-     * <p>If the account requires OTP for login, this method triggers
-     * a {@code LOGIN_2FA} OTP and the controller returns an HTTP
-     * {@code 202 Accepted} response with {@code otpRequired=true} instead
-     * of a token. Otherwise it returns a normal {@link AuthResponse}
-     * containing a JWT.</p>
-     *
-     * @param request the login request containing username and password
-     * @return {@code 200 OK} with {@link AuthResponse} when login succeeds
-     *         without OTP; {@code 202 Accepted} with an OTP payload when
-     *         OTP is required; {@code 401 Unauthorized} on invalid
-     *         credentials; {@code 500 Internal Server Error} on unexpected
-     *         errors
+     * Answers {@code 202 Accepted} rather than {@code 200}: the login is not complete until
+     * the OTP has been verified.
      */
-
     @PostMapping("/login")
-    public ResponseEntity<?> login(@Valid @RequestBody LoginRequest request) {
-        try {
-            AuthResponse resp = authService.login(request);
-            return ResponseEntity.ok(resp); // no-OTP case (if you ever disable OTP)
-        } catch (OtpRequiredException e) {
-            // when OTP is required: 202 (no token)
-            return ResponseEntity.status(HttpStatus.ACCEPTED)
-                    .body(Map.of(
-                            "otpRequired", true,
-                            "purpose", "LOGIN_2FA",
-                            "username", e.getUsername()
-                    ));
-        }
+    @ResponseStatus(HttpStatus.ACCEPTED)
+    public OtpChallengeResponse login(@Valid @RequestBody LoginRequest request) {
+        return authService.login(request);
     }
 
-    /**
-     * Registers a new user account in the online learning platform.
-     *
-     * <p>The method enforces uniqueness of username and e-mail, encodes
-     * the password and persists a new {@link User} entity.</p>
-     *
-     * @param req the registration data (username, e-mail, password and
-     *            optional profile fields)
-     * @return {@code 200 OK} when registration succeeds;
-     *         {@code 409 Conflict} if username or e-mail already exist;
-     *         {@code 400 Bad Request} or {@code 500 Internal Server Error}
-     *         when registration fails for another reason
-     */
+    @PostMapping("/otp/verify")
+    public AuthResponse verifyOtp(@Valid @RequestBody OtpVerifyRequest request) {
+        return authService.verifyOtp(request);
+    }
+
+    @PostMapping("/otp/request")
+    public MessageResponse requestOtp(@Valid @RequestBody OtpResendRequest request) {
+        authService.resendOtp(request.username());
+        return new MessageResponse("OTP resent");
+    }
 
     @PostMapping("/register")
-    public ResponseEntity<?> register(@Valid @RequestBody RegisterRequest req) {
-        authService.register(req);
-        return ResponseEntity.ok(Map.of("message", "Registered"));
+    public MessageResponse register(@Valid @RequestBody RegisterRequest request) {
+        authService.register(request);
+        return new MessageResponse("Registered");
     }
-
-    /**
-     * Initiates the "forgot password" flow by issuing a PASSWORD_RESET OTP.
-     *
-     * <p>An e-mail containing a {@code PASSWORD_RESET} OTP is sent to
-     * the supplied address if it belongs to a known user.</p>
-     *
-     * @param req request body containing the user's e-mail address
-     * @return {@code 200 OK} if the reset OTP has been sent;
-     *         {@code 401 Unauthorized} if the e-mail is unknown;
-     *         {@code 400 Bad Request} if the reset request cannot be processed
-     */
 
     @PostMapping("/password/forgot")
-    public ResponseEntity<?> forgotPassword(@Valid @RequestBody ForgotPasswordRequest req) {
-        try {
-            authService.requestPasswordReset(req); // sends PASSWORD_RESET OTP
-            return ResponseEntity.ok(Map.of("message", "OTP sent"));
-        } catch (UnauthorizedException | BadCredentialsException e) {
-            // avoid leaking which emails exist
-            return ResponseEntity.ok(Map.of("message", "If the email exists, an OTP has been sent"));
-        }
+    public MessageResponse forgotPassword(@Valid @RequestBody ForgotPasswordRequest request) {
+        authService.requestPasswordReset(request);
+        return new MessageResponse("If the email exists, an OTP has been sent");
     }
 
-    /**
-     * Completes the password reset flow by verifying the OTP and updating
-     * the stored password.
-     *
-     * @param req request body containing e-mail, reset OTP code and the
-     *            new password
-     * @return {@code 200 OK} when the password is successfully updated;
-     *         {@code 401 Unauthorized} if e-mail or code are invalid;
-     *         {@code 400 Bad Request} if the password cannot be reset
-     */
-
     @PostMapping("/password/reset")
-    public ResponseEntity<?> resetPassword(@Valid @RequestBody ResetPasswordRequest req)
-    {
-        authService.resetPassword(req);
-        return ResponseEntity.ok(Map.of("message", "Password updated"));
+    public MessageResponse resetPassword(@Valid @RequestBody ResetPasswordRequest request) {
+        authService.resetPassword(request);
+        return new MessageResponse("Password updated");
     }
 }

@@ -1,21 +1,20 @@
 package com.csis231.api.auth.service;
 
-
 import com.csis231.api.auth.dto.AuthResponse;
 import com.csis231.api.auth.dto.ForgotPasswordRequest;
 import com.csis231.api.auth.dto.LoginRequest;
+import com.csis231.api.auth.dto.OtpChallengeResponse;
+import com.csis231.api.auth.dto.OtpVerifyRequest;
 import com.csis231.api.auth.dto.RegisterRequest;
 import com.csis231.api.auth.dto.ResetPasswordRequest;
-import com.csis231.api.common.exception.BadRequestException;
-import com.csis231.api.common.exception.ConflictException;
-import com.csis231.api.common.exception.UnauthorizedException;
-import com.csis231.api.jwt.JwtUtil;
-import com.csis231.api.otp.model.OtpPurposes;
-import com.csis231.api.otp.exception.OtpRequiredException;
+import com.csis231.api.otp.exception.InvalidOtpException;
+import com.csis231.api.otp.model.OtpPurpose;
 import com.csis231.api.otp.service.OtpService;
-import com.csis231.api.otp.dto.OtpVerifyRequest;
+import com.csis231.api.security.JwtService;
+import com.csis231.api.user.dto.UserCreateRequest;
 import com.csis231.api.user.model.User;
 import com.csis231.api.user.repository.UserRepository;
+import com.csis231.api.user.service.UserService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.BadCredentialsException;
@@ -25,135 +24,53 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-/**
- * Application service that implements the core authentication and
- * password recovery logic for the online learning platform.
- *
- * <p>It delegates credential checking to Spring Security's
- * {@link AuthenticationManager}, handles OTP-based two-factor login
- * via {@link OtpService} and issues JWTs via
- * {@link JwtUtil}.</p>
- */
+import java.util.Optional;
 
+/**
+ * Registration, two-step login and password recovery.
+ *
+ * <p>Login always has two steps: {@link #login} checks the password and e-mails a code, then
+ * {@link #verifyOtp} redeems the code and issues the JWT. A password alone never yields a token.
+ * Logging out is client-side, by discarding the token.</p>
+ */
 @Service
 @RequiredArgsConstructor
 public class AuthService {
 
     private final AuthenticationManager authenticationManager;
     private final UserRepository userRepository;
+    private final UserService userService;
     private final PasswordEncoder passwordEncoder;
-    private final JwtUtil jwtUtil;
+    private final JwtService jwtService;
     private final OtpService otpService;
 
-    /**
-     * Registers a user with uniqueness checks and encoded password.
-     */
-    @Transactional
     public void register(RegisterRequest req) {
-        if (req == null || req.getUsername() == null || req.getUsername().isBlank()
-                || req.getEmail() == null || req.getEmail().isBlank()
-                || req.getPassword() == null || req.getPassword().isBlank()) {
-            throw new BadRequestException("Username, email and password are required");
-        }
-        if (userRepository.findByUsername(req.getUsername()).isPresent()) {
-            throw new ConflictException("Username already exists");
-        }
-        if (userRepository.findByEmail(req.getEmail()).isPresent()) {
-            throw new ConflictException("Email already exists");
-        }
-
-        User u = new User();
-        u.setUsername(req.getUsername());
-        u.setEmail(req.getEmail());
-        u.setPassword(passwordEncoder.encode(req.getPassword()));
-        u.setFirstName(req.getFirstName());
-        u.setLastName(req.getLastName());
-        userRepository.save(u);
+        userService.create(new UserCreateRequest(
+                req.username(), req.email(), req.password(), req.firstName(), req.lastName(), req.phone()));
     }
 
     /**
-     * Authenticates a user with username and password and optionally
-     * triggers an OTP-based second factor.
+     * Checks the password and starts the second login step.
      *
-     * <p>If login requires an OTP, a {@code LOGIN_2FA} OTP is created
-     * and sent, and an {@link OtpRequiredException}
-     * is thrown instead of returning a token. Otherwise an
-     * {@link AuthResponse} containing a JWT is returned.</p>
-     *
-     * @param req the login request with username and password
-     * @return an {@link AuthResponse} containing a JWT and basic user data
-     *         when OTP is not required
-     * @throws BadCredentialsException if the username/password combination is invalid
-     * @throws OtpRequiredException
-     *         if login requires OTP verification
+     * @throws org.springframework.security.core.AuthenticationException if the credentials are
+     *         wrong or the account is disabled
      */
+    public OtpChallengeResponse login(LoginRequest req) {
+        Authentication authentication = authenticationManager.authenticate(
+                new UsernamePasswordAuthenticationToken(req.username(), req.password()));
 
-    public AuthResponse login(LoginRequest req) {
-        if (req == null || req.getUsername() == null || req.getUsername().isBlank()
-                || req.getPassword() == null || req.getPassword().isBlank()) {
-            throw new BadRequestException("Username and password are required");
-        }
+        User user = userRepository.findByUsername(authentication.getName())
+                .orElseThrow(() -> new BadCredentialsException("Invalid username or password"));
 
-        Authentication auth = authenticationManager.authenticate(
-                new UsernamePasswordAuthenticationToken(req.getUsername(), req.getPassword())
-        );
-
-        if (auth == null || !auth.isAuthenticated()) {
-            throw new BadCredentialsException("Invalid username or password");
-        }
-
-        User user = userRepository.findByUsername(req.getUsername())
-                .orElseGet(() -> userRepository.findByEmail(req.getUsername())
-                        .orElseThrow(() -> new BadCredentialsException("Invalid username or password")));
-
-        // Always require OTP for login (or gate by a flag user.isTwoFactorEnabled())
-        boolean requiresLoginOtp = true;
-        if (requiresLoginOtp) {
-            otpService.createAndSend(user, OtpPurposes.LOGIN_2FA);
-            // Important: do not return a JWT here.
-            throw new OtpRequiredException(user.getUsername());
-        }
-
-        // If you ever disable OTP for some users:
-        String token = jwtUtil.generateToken(user.getUsername());
-        return new AuthResponse(
-                token,
-                user.getId(),
-                user.getUsername(),
-                user.getEmail(),
-                user.getFirstName(),
-                user.getLastName(),
-                user.getRole().name()
-        );
+        otpService.createAndSend(user, OtpPurpose.LOGIN_2FA);
+        return new OtpChallengeResponse(true, OtpPurpose.LOGIN_2FA, user.getUsername());
     }
-
-    /**
-     * Verifies a LOGIN_2FA OTP code and issues a JWT on success.
-     *
-     * @param req the OTP verification request containing username or e-mail
-     *            and the OTP code
-     * @return an {@link AuthResponse} containing the JWT and user data
-     * @throws BadCredentialsException if the username/e-mail or code are invalid
-     */
 
     public AuthResponse verifyOtp(OtpVerifyRequest req) {
-        if (req == null || req.getUsername() == null || req.getUsername().isBlank()
-                || req.getCode() == null || req.getCode().isBlank()) {
-            throw new BadRequestException("Username and OTP code are required");
-        }
-
-        String id = req.getUsername();
-        String code = req.getCode();
-
-        User user = userRepository.findByUsername(id)
-                .orElseGet(() -> userRepository.findByEmail(id)
-                        .orElseThrow(() -> new BadCredentialsException("Invalid email or code")));
-
-        otpService.verifyOtpOrThrow(user, OtpPurposes.LOGIN_2FA, code);
-
-        String token = jwtUtil.generateToken(user.getUsername());
+        User user = findByUsernameOrEmail(req.username()).orElseThrow(InvalidOtpException::new);
+        otpService.verifyOrThrow(user, OtpPurpose.LOGIN_2FA, req.code());
         return new AuthResponse(
-                token,
+                jwtService.generateToken(user.getUsername()),
                 user.getId(),
                 user.getUsername(),
                 user.getEmail(),
@@ -164,62 +81,37 @@ public class AuthService {
     }
 
     /**
-     * Resends a login OTP for the given username or e-mail.
-     *
-     * <p>If the identifier is blank or does not resolve to any user,
-     * this method returns silently.</p>
-     *
-     * @param username the username or e-mail identifying the user
+     * Sends a new login code. Unknown identifiers are ignored so that the response does not reveal
+     * which accounts exist.
      */
-
-    public void resendOtp(String username) {
-        if (username == null || username.isBlank()) {
-            throw new BadRequestException("Username is required to resend OTP");
-        }
-        userRepository.findByUsername(username)
-                .or(() -> userRepository.findByEmail(username))
-                .ifPresent(u -> otpService.createAndSend(u, OtpPurposes.LOGIN_2FA));
+    public void resendOtp(String usernameOrEmail) {
+        findByUsernameOrEmail(usernameOrEmail)
+                .ifPresent(user -> otpService.createAndSend(user, OtpPurpose.LOGIN_2FA));
     }
 
     /**
-     * Starts a password-reset flow by issuing a PASSWORD_RESET OTP.
-     *
-     * @param req request carrying the e-mail (or username, according to the
-     *            implemented logic)
-     * @throws BadCredentialsException if no matching user is found
+     * Sends a reset code. Unknown identifiers are ignored so that the response does not reveal
+     * which accounts exist.
      */
-
     public void requestPasswordReset(ForgotPasswordRequest req) {
-        if (req == null || req.email() == null || req.email().isBlank()) {
-            throw new BadRequestException("Email is required");
-        }
-
-        User user = userRepository.findByEmail(req.email())
+        userRepository.findByEmail(req.email())
                 .or(() -> userRepository.findByUsername(req.email()))
-                .orElseThrow(() -> new UnauthorizedException("Unknown user"));
-
-        otpService.createAndSend(user, OtpPurposes.PASSWORD_RESET);
+                .ifPresent(user -> otpService.createAndSend(user, OtpPurpose.PASSWORD_RESET));
     }
 
     /**
-     * Resets the user's password after successful PASSWORD_RESET OTP
-     * verification.
-     *
-     * @param req request containing the user's e-mail, the OTP code and
-     *            the new password
-     * @throws BadCredentialsException if the e-mail is unknown or the OTP is invalid
+     * Redeeming the code and storing the new password share one transaction, so neither can
+     * happen without the other.
      */
-
     @Transactional
     public void resetPassword(ResetPasswordRequest req) {
-        if (req == null || req.email() == null || req.email().isBlank()
-                || req.code() == null || req.code().isBlank()
-                || req.newPassword() == null || req.newPassword().isBlank()) {
-            throw new BadRequestException("Email, OTP code and new password are required");
-        }
-        User user = userRepository.findByEmail(req.email())
-                .orElseThrow(() -> new UnauthorizedException("Unknown email"));
-        otpService.verifyOtpOrThrow(user, OtpPurposes.PASSWORD_RESET, req.code());
+        User user = userRepository.findByEmail(req.email()).orElseThrow(InvalidOtpException::new);
+        otpService.verifyOrThrow(user, OtpPurpose.PASSWORD_RESET, req.code());
         user.setPassword(passwordEncoder.encode(req.newPassword()));
+    }
+
+    private Optional<User> findByUsernameOrEmail(String identifier) {
+        return userRepository.findByUsername(identifier)
+                .or(() -> userRepository.findByEmail(identifier));
     }
 }

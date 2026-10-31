@@ -1,14 +1,9 @@
-
 package com.csis231.api.auth.dto;
 
 import jakarta.validation.constraints.NotBlank;
 
 /**
- * Request body used to start the "forgot password" flow.
- *
- * @param email the e-mail address associated with the account
+ * @param email the account's e-mail address; a username is accepted as well
  */
-
-public record ForgotPasswordRequest(
-         @NotBlank String email
-) {}
+public record ForgotPasswordRequest(@NotBlank String email) {
+}

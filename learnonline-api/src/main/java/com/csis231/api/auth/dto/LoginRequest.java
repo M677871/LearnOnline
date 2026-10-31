@@ -1,14 +1,9 @@
-
 package com.csis231.api.auth.dto;
+
 import jakarta.validation.constraints.NotBlank;
-import lombok.Data;
 
-/**
- * Request body used for username/password authentication.
- */
-
-@Data
-public class LoginRequest {
-    @NotBlank private String username;
-    @NotBlank private String password;
+public record LoginRequest(
+        @NotBlank String username,
+        @NotBlank String password
+) {
 }
