@@ -1,40 +1,27 @@
 package com.csis231.api.quiz.mapper;
 
-import com.csis231.api.quiz.dto.*;
+import com.csis231.api.quiz.dto.AnswerOptionDto;
+import com.csis231.api.quiz.dto.QuizDetailDto;
+import com.csis231.api.quiz.dto.QuizQuestionDto;
+import com.csis231.api.quiz.dto.QuizResultDto;
+import com.csis231.api.quiz.dto.QuizSummaryDto;
+import com.csis231.api.quiz.model.AnswerOption;
 import com.csis231.api.quiz.model.Quiz;
+import com.csis231.api.quiz.model.QuizQuestion;
 import com.csis231.api.quiz.model.QuizResult;
 
-
 import java.util.List;
+import java.util.Map;
 
-/**
- * Mapper utilities for quiz-related DTOs.
- */
 public final class QuizMapper {
-    private QuizMapper() {}
 
-    /**
-     * Maps a {@link Quiz} to a summary DTO with zero questions counted.
-     *
-     * @param quiz the quiz entity
-     * @return a {@link QuizSummaryDto} or {@code null} if input is null
-     */
-    public static QuizSummaryDto toSummaryDto(Quiz quiz) {
-        return toSummaryDto(quiz, 0);
+    private QuizMapper() {
     }
 
-    /**
-     * Maps a {@link Quiz} to a summary DTO with an explicit question count.
-     *
-     * @param quiz          the quiz entity
-     * @param questionCount the number of questions in the quiz
-     * @return a {@link QuizSummaryDto} or {@code null} if input is null
-     */
     public static QuizSummaryDto toSummaryDto(Quiz quiz, int questionCount) {
-        if (quiz == null) return null;
         return new QuizSummaryDto(
                 quiz.getId(),
-                quiz.getCourse() != null ? quiz.getCourse().getId() : null,
+                quiz.getCourse().getId(),
                 quiz.getName(),
                 quiz.getDescription(),
                 questionCount,
@@ -42,39 +29,36 @@ public final class QuizMapper {
         );
     }
 
-    /**
-     * Maps a {@link Quiz} and its questions to a detailed DTO.
-     *
-     * @param quiz      the quiz entity
-     * @param questions the list of question DTOs
-     * @return a {@link QuizDetailDto} or {@code null} if quiz is null
-     */
-    public static QuizDetailDto toDetailDto(Quiz quiz, List<QuizQuestionDto> questions) {
-        if (quiz == null) return null;
+    public static QuizDetailDto toDetailDto(Quiz quiz,
+                                            List<QuizQuestion> questions,
+                                            Map<Long, List<AnswerOption>> optionsByQuestion) {
+        List<QuizQuestionDto> questionDtos = questions.stream()
+                .map(question -> toQuestionDto(question, optionsByQuestion.getOrDefault(question.getId(), List.of())))
+                .toList();
         return new QuizDetailDto(
                 quiz.getId(),
-                quiz.getCourse() != null ? quiz.getCourse().getId() : null,
+                quiz.getCourse().getId(),
                 quiz.getName(),
                 quiz.getDescription(),
-                questions
+                questionDtos
         );
     }
 
-    /**
-     * Maps a {@link QuizResult} to its DTO representation.
-     *
-     * @param result the quiz result entity
-     * @return a {@link QuizResultDto} or {@code null} if input is null
-     */
     public static QuizResultDto toResultDto(QuizResult result) {
-        if (result == null) return null;
         return new QuizResultDto(
                 result.getId(),
-                result.getQuiz() != null ? result.getQuiz().getId() : null,
-                result.getStudent() != null ? result.getStudent().getId() : null,
+                result.getQuiz().getId(),
+                result.getStudent().getId(),
                 result.getScore(),
                 result.getTotalQuestions(),
                 result.getCompletedAt()
         );
+    }
+
+    private static QuizQuestionDto toQuestionDto(QuizQuestion question, List<AnswerOption> options) {
+        List<AnswerOptionDto> optionDtos = options.stream()
+                .map(option -> new AnswerOptionDto(option.getId(), option.getAnswerText()))
+                .toList();
+        return new QuizQuestionDto(question.getId(), question.getQuestionText(), optionDtos);
     }
 }

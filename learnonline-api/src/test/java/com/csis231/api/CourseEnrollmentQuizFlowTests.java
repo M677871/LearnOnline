@@ -2,7 +2,7 @@ package com.csis231.api;
 
 import com.csis231.api.category.model.Category;
 import com.csis231.api.category.repository.CategoryRepository;
-import com.csis231.api.course.model.Course;
+import com.csis231.api.course.dto.CourseDto;
 import com.csis231.api.course.dto.CourseRequest;
 import com.csis231.api.course.service.CourseService;
 import com.csis231.api.enrollment.dto.EnrollmentRequest;
@@ -10,7 +10,6 @@ import com.csis231.api.enrollment.service.EnrollmentService;
 import com.csis231.api.quiz.dto.QuizSubmissionRequest;
 
 import com.csis231.api.quiz.dto.*;
-import com.csis231.api.quiz.model.Quiz;
 import com.csis231.api.quiz.repository.AnswerOptionRepository;
 import com.csis231.api.quiz.repository.QuizQuestionRepository;
 import com.csis231.api.quiz.service.QuizService;
@@ -64,14 +63,14 @@ class CourseEnrollmentQuizFlowTests {
 
         Category category = categoryRepository.save(Category.builder().name("Tech").build());
 
-        Course course = courseService.createCourse(
+        CourseDto course = courseService.createCourse(
                 new CourseRequest("Course 101", "Desc", category.getId(), true),
                 instructor);
 
-        enrollmentService.enroll(student, new EnrollmentRequest(null, course.getId()));
+        enrollmentService.enroll(student, new EnrollmentRequest(null, course.id()));
 
-        Quiz quiz = quizService.createQuiz(new QuizCreateRequest(course.getId(), "Quiz 1", "Basics"), instructor);
-        quizService.addQuestions(quiz.getId(),
+        QuizSummaryDto quiz = quizService.createQuiz(new QuizCreateRequest(course.id(), "Quiz 1", "Basics"), instructor);
+        quizService.addQuestions(quiz.id(),
                 List.of(new QuizQuestionRequest("What is 2+2?",
                         List.of(
                                 new AnswerCreateRequest("3", false),
@@ -79,7 +78,7 @@ class CourseEnrollmentQuizFlowTests {
                         ))),
                 instructor);
 
-        var question = questionRepository.findByQuiz_Id(quiz.getId()).get(0);
+        var question = questionRepository.findByQuiz_Id(quiz.id()).get(0);
         var correctAnswer = answerOptionRepository.findByQuestion_IdIn(List.of(question.getId()))
                 .stream()
                 .filter(a -> Boolean.TRUE.equals(a.getCorrect()))
@@ -87,7 +86,7 @@ class CourseEnrollmentQuizFlowTests {
                 .orElseThrow();
 
         QuizSubmissionResponse response = quizService.submitQuiz(
-                quiz.getId(),
+                quiz.id(),
                 new QuizSubmissionRequest(List.of(new QuizSubmissionAnswer(question.getId(), correctAnswer.getId()))),
                 student);
 

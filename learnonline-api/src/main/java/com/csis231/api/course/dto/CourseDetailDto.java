@@ -21,4 +21,5 @@ public record CourseDetailDto(
         Instant updatedAt,
         List<CourseMaterialDto> materials,
         List<QuizSummaryDto> quizzes
-) {}
+) {
+}

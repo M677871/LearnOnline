@@ -1,10 +1,9 @@
 package com.csis231.api.quiz.dto;
 
-
 import java.util.List;
 
 /**
- * Full quiz definition returned to students (without correctness flags).
+ * Quiz content for taking it. Options carry no correctness flag, so answers stay hidden.
  */
 public record QuizDetailDto(
         Long id,
@@ -12,4 +11,5 @@ public record QuizDetailDto(
         String name,
         String description,
         List<QuizQuestionDto> questions
-) {}
+) {
+}

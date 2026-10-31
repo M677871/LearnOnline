@@ -4,9 +4,6 @@ import com.csis231.api.enrollment.model.CourseEnrollment;
 
 import java.time.Instant;
 
-/**
- * Response DTO representing a course enrollment.
- */
 public record EnrollmentResponse(
         Long id,
         Long studentUserId,
@@ -16,4 +13,5 @@ public record EnrollmentResponse(
         String courseTitle,
         CourseEnrollment.EnrollmentStatus status,
         Instant enrolledAt
-) {}
+) {
+}

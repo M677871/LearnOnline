@@ -1,41 +1,25 @@
-
 package com.csis231.api.user.dto;
 
-import lombok.AllArgsConstructor;
-import lombok.Data;
+import com.fasterxml.jackson.annotation.JsonProperty;
 
-/**
- * DTO returned by the {@code /me} endpoint containing basic profile
- * information about the currently authenticated user.
- *
- * <p>This object is meant to be lightweight and safe to expose to the
- * frontend of the online learning platform.</p>
- */
-
-@Data
-@AllArgsConstructor
-public class MeResponse {
-    private Long   id;
-    private String username;
-    private String email;
-    private String firstName;
-    private String lastName;
-    private String phone;
-    private String role;
-
+public record MeResponse(
+        Long id,
+        String username,
+        String email,
+        String firstName,
+        String lastName,
+        String phone,
+        String role
+) {
     /**
-     * Returns a human-friendly display name for the user.
-     *
-     * <p>If both first name and last name are blank or {@code null},
-     * the username is returned instead.</p>
-     *
-     * @return full name if available; otherwise the username
+     * Display name for the client, falling back to the username when no name is set.
+     * Jackson only serializes record components by default, hence the explicit {@link JsonProperty}.
      */
-
-    public String getFullName() {
-        String fn = (firstName == null ? "" : firstName.trim());
-        String ln = (lastName  == null ? "" : lastName.trim());
-        String full = (fn + " " + ln).trim();
+    @JsonProperty
+    public String fullName() {
+        String first = firstName == null ? "" : firstName.trim();
+        String last = lastName == null ? "" : lastName.trim();
+        String full = (first + " " + last).trim();
         return full.isEmpty() ? username : full;
     }
 }

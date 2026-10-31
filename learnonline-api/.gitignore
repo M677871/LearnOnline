@@ -24,3 +24,4 @@ out/
 **/.env.*
 **/application*.yml
 **/application*.yaml
+EXPLANATION.md

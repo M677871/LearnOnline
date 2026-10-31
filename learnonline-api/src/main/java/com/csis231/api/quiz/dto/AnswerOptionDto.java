@@ -1,9 +1,10 @@
 package com.csis231.api.quiz.dto;
 
 /**
- * DTO representing a single answer option without exposing correctness.
+ * An option as shown to quiz takers: deliberately without the correctness flag.
  */
 public record AnswerOptionDto(
         Long id,
         String answerText
-) {}
+) {
+}

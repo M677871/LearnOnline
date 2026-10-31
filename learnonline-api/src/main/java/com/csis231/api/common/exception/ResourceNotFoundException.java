@@ -1,10 +1,10 @@
 package com.csis231.api.common.exception;
 
-/**
- * Thrown when an expected resource cannot be located.
- */
+import org.springframework.http.HttpStatus;
+
 public class ResourceNotFoundException extends ApplicationException {
+
     public ResourceNotFoundException(String message) {
-        super(message, "NOT_FOUND");
+        super(message, HttpStatus.NOT_FOUND, "NOT_FOUND");
     }
 }

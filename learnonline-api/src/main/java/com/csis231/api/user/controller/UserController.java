@@ -1,155 +1,71 @@
 package com.csis231.api.user.controller;
 
-
 import com.csis231.api.common.dto.PagedResponse;
-import com.csis231.api.common.exception.BadRequestException;
-import com.csis231.api.common.exception.ResourceNotFoundException;
-import com.csis231.api.common.service.AuthenticatedUserService;
+import com.csis231.api.common.util.Paging;
 import com.csis231.api.user.dto.MeResponse;
 import com.csis231.api.user.dto.UserCreateRequest;
 import com.csis231.api.user.dto.UserResponse;
 import com.csis231.api.user.dto.UserUpdateRequest;
-import com.csis231.api.user.model.User;
+import com.csis231.api.user.mapper.UserMapper;
+import com.csis231.api.user.service.AuthenticatedUserService;
 import com.csis231.api.user.service.UserService;
 import jakarta.validation.Valid;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.http.ResponseEntity;
+import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.core.Authentication;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.ResponseStatus;
+import org.springframework.web.bind.annotation.RestController;
 
 /**
-
- * REST controller exposing CRUD endpoints for {@link User} entities.
- * The base path /api/csis-users avoids clashing with the standard
- * LearnOnline user controller already present in the application.
+ * Administrator user management, plus {@code /me} for any signed-in user.
+ * The URL rules in {@code SecurityConfig} restrict everything except {@code /me} to admins.
  */
 @RestController
 @RequestMapping("/api/csis-users")
+@RequiredArgsConstructor
 public class UserController {
+
     private final UserService userService;
     private final AuthenticatedUserService authenticatedUserService;
 
-    @Autowired
-    public UserController(UserService userService, AuthenticatedUserService authenticatedUserService) {
-        this.userService = userService;
-        this.authenticatedUserService = authenticatedUserService;
-    }
-
-    /**
-     * Retrieves a paginated list of users.
-     *
-     * @param page the zero-based page index to return
-     * @param size the number of users per page (must be greater than zero)
-    * @return a {@link PagedResponse} containing users and pagination metadata
-     */
     @GetMapping
     public PagedResponse<UserResponse> list(@RequestParam(defaultValue = "0") int page,
                                             @RequestParam(defaultValue = "10") int size) {
-        if (size <= 0) {
-            throw new BadRequestException("Size must be greater than zero");
-        }
-
-        var springPage = userService.getUsers(PageRequest.of(Math.max(0, page), size))
-                .map(UserController::toResponse);
-        return PagedResponse.fromPage(springPage);
+        return userService.list(Paging.of(page, size));
     }
-    /**
-     * Retrieves a user by identifier.
-     *
-     * @param id the user ID to fetch
-    * @return the matching user response DTO
-     */
+
     @GetMapping("/{id}")
     public UserResponse get(@PathVariable Long id) {
-        return userService.getUser(id)
-                .map(UserController::toResponse)
-                .orElseThrow(() -> new ResourceNotFoundException("User not found: " + id));
+        return userService.get(id);
     }
 
-    /**
-     * Creates a new user record.
-     *
-    * @param request the user payload to persist
-    * @return the created user response DTO
-     */
     @PostMapping
-    public ResponseEntity<UserResponse> create(@Valid @RequestBody UserCreateRequest request) {
-        User created = userService.createUser(request);
-        return ResponseEntity.status(201).body(toResponse(created));
+    @ResponseStatus(HttpStatus.CREATED)
+    public UserResponse create(@Valid @RequestBody UserCreateRequest request) {
+        return userService.create(request);
     }
 
-    /**
-     * Updates an existing user, applying only non-null fields.
-     *
-     * @param id   the identifier of the user to update
-     * @param request the incoming user fields to apply
-     * @return the updated user response DTO
-     */
     @PutMapping("/{id}")
-    public UserResponse update(@PathVariable Long id,
-                               @Valid @RequestBody UserUpdateRequest request) {
-        return userService.updateUser(id, request)
-                .map(UserController::toResponse)
-                .orElseThrow(() -> new ResourceNotFoundException("User not found: " + id));
+    public UserResponse update(@PathVariable Long id, @Valid @RequestBody UserUpdateRequest request) {
+        return userService.update(id, request);
     }
 
-    /**
-     * Deletes a user by identifier.
-     *
-     * @param id the user ID to delete
-     * @return {@link ResponseEntity} with no content on success
-     */
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> delete(@PathVariable Long id) {
-        userService.deleteUser(id);
-        return ResponseEntity.noContent().build();
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void delete(@PathVariable Long id) {
+        userService.delete(id);
     }
-
-    /**
-     * Returns profile information about the currently authenticated user.
-     *
-     * <p>The username is taken from the {@link Authentication} object and the
-     * corresponding {@link User} is mapped to a {@link MeResponse}
-     * DTO that is safe to expose to the frontend.</p>
-     *
-     * @param authentication the Spring Security authentication of the current request
-     * @return a {@link MeResponse} containing basic user data
-     */
 
     @GetMapping("/me")
-
-
     public MeResponse me(Authentication authentication) {
-        User u = authenticatedUserService.require(authentication);
-
-
-        return new MeResponse(
-                u.getId(),
-                u.getUsername(),
-                u.getEmail(),
-                u.getFirstName(),
-                u.getLastName(),
-                u.getPhone(),
-                u.getRole().name()
-        );
+        return UserMapper.toMeResponse(authenticatedUserService.require(authentication));
     }
-
-    private static UserResponse toResponse(User user) {
-        return new UserResponse(
-                user.getId(),
-                user.getUsername(),
-                user.getEmail(),
-                user.getFirstName(),
-                user.getLastName(),
-                user.getPhone(),
-                user.getRole() == null ? null : user.getRole().name(),
-                user.getIsActive(),
-                user.getEmailVerified(),
-                user.getTwoFactorEnabled()
-        );
-    }
-
-
 }
-

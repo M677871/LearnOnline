@@ -1,131 +1,79 @@
 package com.csis231.api.quiz.controller;
 
-import com.csis231.api.common.exception.ResourceNotFoundException;
-import com.csis231.api.common.exception.UnauthorizedException;
-import com.csis231.api.common.service.AuthenticatedUserService;
-import com.csis231.api.quiz.dto.*;
-import com.csis231.api.quiz.mapper.QuizMapper;
+import com.csis231.api.quiz.dto.QuizCreateRequest;
+import com.csis231.api.quiz.dto.QuizDetailDto;
+import com.csis231.api.quiz.dto.QuizQuestionRequest;
+import com.csis231.api.quiz.dto.QuizResultDto;
+import com.csis231.api.quiz.dto.QuizSubmissionRequest;
+import com.csis231.api.quiz.dto.QuizSubmissionResponse;
+import com.csis231.api.quiz.dto.QuizSummaryDto;
 import com.csis231.api.quiz.service.QuizService;
-import com.csis231.api.user.model.User;
-import com.csis231.api.quiz.model.Quiz;
-
+import com.csis231.api.user.service.AuthenticatedUserService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import org.springframework.http.ResponseEntity;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.core.Authentication;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.ResponseStatus;
+import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
 
-/**
- * REST endpoints for quiz authoring and delivery.
- */
 @RestController
 @RequestMapping("/api/quizzes")
 @RequiredArgsConstructor
 public class QuizController {
+
     private final QuizService quizService;
     private final AuthenticatedUserService authenticatedUserService;
 
-    /**
-     * Creates a new quiz for the specified course.
-     *
-     * @param request        the quiz creation payload
-     * @param authentication the authenticated instructor/admin creating the quiz
-     * @return {@code 201 Created} with the created quiz summary
-     */
     @PostMapping
-    public ResponseEntity<QuizSummaryDto> create(@Valid @RequestBody QuizCreateRequest request,
-                                                 Authentication authentication) {
-        User actor = authenticatedUserService.require(authentication);
-        Quiz quiz = quizService.createQuiz(request, actor);
-        QuizSummaryDto dto = QuizMapper.toSummaryDto(quiz, 0);
-        return ResponseEntity.status(201).body(dto);
+    @ResponseStatus(HttpStatus.CREATED)
+    public QuizSummaryDto create(@Valid @RequestBody QuizCreateRequest request, Authentication authentication) {
+        return quizService.createQuiz(request, authenticatedUserService.require(authentication));
     }
 
-    /**
-     * Adds questions (and answers) to an existing quiz.
-     *
-     * @param quizId         the quiz identifier
-     * @param questions      the questions to add
-     * @param authentication the authenticated principal
-     * @return {@code 201 Created} on success
-     */
     @PostMapping("/{quizId}/questions")
-    public ResponseEntity<Void> addQuestions(@PathVariable Long quizId,
-                                             @Valid @RequestBody List<QuizQuestionRequest> questions,
-                                             Authentication authentication) {
-        User actor = authenticatedUserService.require(authentication);
-        quizService.addQuestions(quizId, questions, actor);
-        return ResponseEntity.status(201).build();
+    @ResponseStatus(HttpStatus.CREATED)
+    public void addQuestions(@PathVariable Long quizId,
+                             @Valid @RequestBody List<QuizQuestionRequest> questions,
+                             Authentication authentication) {
+        quizService.addQuestions(quizId, questions, authenticatedUserService.require(authentication));
     }
 
-    /**
-     * Retrieves quiz details (questions and options) for viewing/taking.
-     *
-     * @param quizId         the quiz identifier
-     * @param authentication the authenticated principal
-     * @return the {@link QuizDetailDto} for the quiz
-     */
     @GetMapping("/{quizId}")
     public QuizDetailDto get(@PathVariable Long quizId, Authentication authentication) {
-        User viewer = authenticatedUserService.require(authentication);
-        return quizService.getQuizDetail(quizId, viewer);
+        return quizService.getQuizDetail(quizId, authenticatedUserService.require(authentication));
     }
 
-    /**
-     * Submits quiz answers for grading.
-     *
-     * @param quizId         the quiz identifier
-     * @param request        the submission payload
-     * @param authentication the authenticated principal
-     * @return a {@link QuizSubmissionResponse} summarizing the result
-     */
     @PostMapping("/{quizId}/submit")
     public QuizSubmissionResponse submit(@PathVariable Long quizId,
                                          @Valid @RequestBody QuizSubmissionRequest request,
                                          Authentication authentication) {
-        User actor = authenticatedUserService.require(authentication);
-        return quizService.submitQuiz(quizId, request, actor);
+        return quizService.submitQuiz(quizId, request, authenticatedUserService.require(authentication));
     }
 
-    /**
-     * Lists all results for a quiz (admin/instructor only).
-     *
-     * @param quizId         the quiz identifier
-     * @param authentication the authenticated principal
-     * @return list of {@link QuizResultDto} for the quiz
-     */
     @GetMapping("/{quizId}/results")
     public List<QuizResultDto> results(@PathVariable Long quizId, Authentication authentication) {
-        User actor = authenticatedUserService.require(authentication);
-        return quizService.resultsForQuiz(quizId, actor);
+        return quizService.resultsForQuiz(quizId, authenticatedUserService.require(authentication));
     }
 
     /**
-     * Retrieves the most recent result for the current user on the given quiz.
-     *
-     * @param quizId         the quiz identifier
-     * @param authentication the authenticated principal
-     * @return the latest {@link QuizResultDto} for the user, or {@code null} if none
+     * Answers {@code 200} with an empty body when the user has no attempt yet.
      */
     @GetMapping("/{quizId}/my-result")
     public QuizResultDto myResult(@PathVariable Long quizId, Authentication authentication) {
-        User actor = authenticatedUserService.require(authentication);
-        return quizService.latestResultForUser(quizId, actor);
+        return quizService.latestResultForUser(quizId, authenticatedUserService.require(authentication));
     }
 
-    /**
-     * Deletes a quiz and its related artifacts.
-     *
-     * @param quizId         the quiz identifier
-     * @param authentication the authenticated principal
-     * @return {@link ResponseEntity} with no content on success
-     */
     @DeleteMapping("/{quizId}")
-    public ResponseEntity<Void> delete(@PathVariable Long quizId, Authentication authentication) {
-        User actor = authenticatedUserService.require(authentication);
-        quizService.deleteQuiz(quizId, actor);
-        return ResponseEntity.noContent().build();
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void delete(@PathVariable Long quizId, Authentication authentication) {
+        quizService.deleteQuiz(quizId, authenticatedUserService.require(authentication));
     }
 }

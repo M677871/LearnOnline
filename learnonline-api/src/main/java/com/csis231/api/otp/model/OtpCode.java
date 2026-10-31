@@ -1,77 +1,59 @@
 package com.csis231.api.otp.model;
 
-
 import com.csis231.api.user.model.User;
-import jakarta.persistence.*;
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
+import jakarta.persistence.FetchType;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.Index;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
+import jakarta.persistence.Table;
+import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
-import lombok.Data;
+import lombok.Getter;
 import lombok.NoArgsConstructor;
+import lombok.Setter;
 
 import java.time.Instant;
 
-/**
- * JPA entity representing a one-time password (OTP) issued for a specific
- * {@link User} and logical purpose.
- *
- * <p>Each record stores the generated code, its purpose, the creation/expiration
- * timestamps and an optional consumption timestamp that is set once the OTP is
- * successfully used.</p>
- */
+@Entity
+@Table(name = "otp_codes", indexes = @Index(columnList = "user_id,purpose,expires_at"))
+@Getter
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
+@AllArgsConstructor(access = AccessLevel.PRIVATE)
+@Builder
+public class OtpCode {
 
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
 
-    @Entity
-    @Table(
-            name = "otp_codes",
-            indexes = @Index(columnList = "user_id,purpose,expires_at")
-    )
-    @Data
-    @NoArgsConstructor
-    @AllArgsConstructor
-    @Builder
-    public class OtpCode {
-        @Id
-        @GeneratedValue(strategy = GenerationType.IDENTITY)
-        private Long id;
+    @ManyToOne(optional = false, fetch = FetchType.LAZY)
+    @JoinColumn(name = "user_id", nullable = false)
+    private User user;
 
-        @ManyToOne(optional = false, fetch = FetchType.LAZY)
-        @JoinColumn(name = "user_id", nullable = false)
-        private User user;
+    @Column(nullable = false, length = 6)
+    private String code;
 
-        @Column(nullable = false, length = 6)
-        private String code;
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 20)
+    private OtpPurpose purpose;
 
-        @Column(nullable = false, length = 20)
-        private String purpose; // e.g. LOGIN_2FA, EMAIL_VERIFY
+    @Column(name = "expires_at", nullable = false)
+    private Instant expiresAt;
 
-    /**
-     * Time at which this OTP expires and will no longer be accepted.
-     */
+    /** Set once the code is redeemed or superseded by a newer one; {@code null} means still unused. */
+    @Setter
+    @Column(name = "consumed_at")
+    private Instant consumedAt;
 
-        @Column(name = "expires_at", nullable = false)
-        private Instant expiresAt;
-
-    /**
-     * Time at which this OTP was successfully used.
-     *
-     * <p>If this value is {@code null}, the OTP has not yet been consumed.</p>
-     */
-
-        @Column(name = "consumed_at")
-        private Instant consumedAt;
-
-    /**
-     * Checks whether this OTP is currently valid.
-     *
-     * @return {@code true} if the code has not been consumed yet and the current
-     *         instant is strictly before {@link #expiresAt}; {@code false} otherwise
-     */
-
-        public boolean isValidNow()
-        {
-            return consumedAt == null && Instant.now().isBefore(expiresAt);
-        }
+    public boolean isUsableAt(Instant instant) {
+        return consumedAt == null && instant.isBefore(expiresAt);
     }
-
-
-
+}

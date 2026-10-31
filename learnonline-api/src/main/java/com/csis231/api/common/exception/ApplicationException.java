@@ -1,27 +1,21 @@
 package com.csis231.api.common.exception;
 
 import lombok.Getter;
+import org.springframework.http.HttpStatus;
 
 /**
- * Base runtime exception for domain-level errors.
+ * Base class for expected business failures. Each subclass fixes its HTTP status and error code,
+ * which lets {@code GlobalExceptionHandler} translate all of them with a single handler.
  */
 @Getter
-public class ApplicationException extends RuntimeException {
+public abstract class ApplicationException extends RuntimeException {
+
+    private final HttpStatus status;
     private final String code;
 
-    public ApplicationException(String message) {
+    protected ApplicationException(String message, HttpStatus status, String code) {
         super(message);
-        this.code = null;
-    }
-
-    /**
-     * Creates a new application exception with a message and explicit error code.
-     *
-     * @param message human-readable description of the error
-     * @param code    machine-readable error code
-     */
-    public ApplicationException(String message, String code) {
-        super(message);
+        this.status = status;
         this.code = code;
     }
 }

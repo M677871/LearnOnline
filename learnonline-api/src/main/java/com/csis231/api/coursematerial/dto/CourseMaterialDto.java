@@ -13,4 +13,5 @@ public record CourseMaterialDto(
         String url,
         String metadata,
         Instant createdAt
-) {}
+) {
+}

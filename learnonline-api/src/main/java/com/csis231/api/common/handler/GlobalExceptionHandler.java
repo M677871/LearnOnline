@@ -1,170 +1,132 @@
 package com.csis231.api.common.handler;
 
-
 import com.csis231.api.common.dto.ErrorResponse;
-import com.csis231.api.common.exception.BadRequestException;
-import com.csis231.api.common.exception.ConflictException;
-import com.csis231.api.common.exception.ResourceNotFoundException;
-import com.csis231.api.common.exception.UnauthorizedException;
+import com.csis231.api.common.exception.ApplicationException;
 import jakarta.validation.ConstraintViolationException;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.MessageSourceResolvable;
+import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.HttpStatusCode;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.core.AuthenticationException;
+import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
-import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
+import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.context.request.ServletWebRequest;
 import org.springframework.web.context.request.WebRequest;
+import org.springframework.web.method.annotation.HandlerMethodValidationException;
+import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExceptionHandler;
 
 import java.time.Instant;
+import java.util.List;
 
 /**
- * Centralizes translation of exceptions into consistent HTTP responses.
+ * Translates exceptions raised in the MVC layer into {@link ErrorResponse} payloads.
+ *
+ * <p>The base class maps Spring's own exceptions (malformed JSON, unknown routes, unsupported methods,
+ * type mismatches, ...) to their proper status, and {@link #handleExceptionInternal} gives them the
+ * same payload as our errors. Failures inside the security filter chain never get here.</p>
  */
-@ControllerAdvice
+@RestControllerAdvice
 @Slf4j
-public class GlobalExceptionHandler {
+public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
 
-    /**
-     * Builds a standard {@link ErrorResponse} from message/code and request path.
-     *
-     * @param message human-readable error description
-     * @param code    machine-readable error code
-     * @param request the current request context
-     * @return a populated {@link ErrorResponse}
-     */
-    private ErrorResponse build(String message, String code, WebRequest request) {
-        String path = null;
-        if (request instanceof ServletWebRequest servletRequest) {
-            path = servletRequest.getRequest().getRequestURI();
-        }
-        return ErrorResponse.builder()
-                .message(message)
-                .code(code)
-                .timestamp(Instant.now())
-                .path(path)
-                .build();
+    @ExceptionHandler(ApplicationException.class)
+    public ResponseEntity<ErrorResponse> handleApplication(ApplicationException ex, WebRequest request) {
+        return ResponseEntity.status(ex.getStatus()).body(build(ex.getMessage(), ex.getCode(), request));
     }
 
-    @ExceptionHandler(BadRequestException.class)
-    public ResponseEntity<ErrorResponse> handleBadRequest(BadRequestException ex, WebRequest request) {
-        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                .body(build(ex.getMessage(), ex.getCode(), request));
+    @ExceptionHandler(AuthenticationException.class)
+    public ResponseEntity<ErrorResponse> handleAuthentication(AuthenticationException ex, WebRequest request) {
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(build(ex.getMessage(), "UNAUTHORIZED", request));
     }
 
-    /**
-     * Handles unauthorized/forbidden errors raised by the application.
-     *
-     * @param ex      the unauthorized exception
-     * @param request the current request
-     * @return a 403 response with standardized error payload
-     */
-    @ExceptionHandler(UnauthorizedException.class)
-    public ResponseEntity<ErrorResponse> handleUnauthorized(UnauthorizedException ex, WebRequest request) {
-        // Use 403 as the default for unauthorized/forbidden resource access
-        return ResponseEntity.status(HttpStatus.FORBIDDEN)
-                .body(build(ex.getMessage(), ex.getCode(), request));
-    }
-
-    /**
-     * Handles Spring Security access denied exceptions.
-     *
-     * @param ex      the access denied exception
-     * @param request the current request
-     * @return a 403 response with standardized error payload
-     */
     @ExceptionHandler(AccessDeniedException.class)
     public ResponseEntity<ErrorResponse> handleAccessDenied(AccessDeniedException ex, WebRequest request) {
-        return ResponseEntity.status(HttpStatus.FORBIDDEN)
-                .body(build("Access denied", "FORBIDDEN", request));
+        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(build("Access denied", "FORBIDDEN", request));
     }
 
     /**
-     * Handles bad credential errors.
-     *
-     * @param ex      bad credentials exception
-     * @param request the current request
-     * @return a 401 response with standardized error payload
+     * Covers deletes of rows that are still referenced, and uniqueness races that slip past the
+     * existence checks in the services. The database message is logged but never returned.
      */
-    @ExceptionHandler(BadCredentialsException.class)
-    public ResponseEntity<ErrorResponse> handleBadCredentials(BadCredentialsException ex, WebRequest request) {
-        return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                .body(build(ex.getMessage(), "UNAUTHORIZED", request));
-    }
-
-    /**
-     * Handles not-found exceptions raised by the application.
-     *
-     * @param ex      resource not found exception
-     * @param request the current request
-     * @return a 404 response with standardized error payload
-     */
-    @ExceptionHandler(ResourceNotFoundException.class)
-    public ResponseEntity<ErrorResponse> handleNotFound(ResourceNotFoundException ex, WebRequest request) {
-        return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                .body(build(ex.getMessage(), ex.getCode(), request));
-    }
-
-    /**
-     * Handles conflict exceptions raised by the application.
-     *
-     * @param ex      conflict exception
-     * @param request the current request
-     * @return a 409 response with standardized error payload
-     */
-    @ExceptionHandler(ConflictException.class)
-    public ResponseEntity<ErrorResponse> handleConflict(ConflictException ex, WebRequest request) {
+    @ExceptionHandler(DataIntegrityViolationException.class)
+    public ResponseEntity<ErrorResponse> handleDataIntegrity(DataIntegrityViolationException ex, WebRequest request) {
+        log.warn("Data integrity violation: {}", ex.getMostSpecificCause().getMessage());
         return ResponseEntity.status(HttpStatus.CONFLICT)
-                .body(build(ex.getMessage(), ex.getCode(), request));
+                .body(build("The operation conflicts with existing data", "CONFLICT", request));
     }
 
-    /**
-     * Handles bean validation errors from @Valid annotated payloads.
-     *
-     * @param ex      validation exception with binding errors
-     * @param request the current request
-     * @return a 400 response with the first validation error message
-     */
-    @ExceptionHandler(MethodArgumentNotValidException.class)
-    public ResponseEntity<ErrorResponse> handleValidation(MethodArgumentNotValidException ex, WebRequest request) {
-        String message = ex.getBindingResult().getFieldErrors().stream()
-                .findFirst()
-                .map(err -> err.getField() + " " + err.getDefaultMessage())
-                .orElse("Validation failed");
-        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                .body(build(message, "VALIDATION_FAILED", request));
-    }
-
-    /**
-     * Handles constraint violations raised outside of controller binding.
-     *
-     * @param ex      constraint violation exception
-     * @param request the current request
-     * @return a 400 response with the first violation message
-     */
     @ExceptionHandler(ConstraintViolationException.class)
     public ResponseEntity<ErrorResponse> handleConstraintViolation(ConstraintViolationException ex, WebRequest request) {
         String message = ex.getConstraintViolations().stream()
                 .findFirst()
-                .map(v -> v.getPropertyPath() + " " + v.getMessage())
+                .map(violation -> violation.getPropertyPath() + " " + violation.getMessage())
                 .orElse("Validation failed");
-        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                .body(build(message, "VALIDATION_FAILED", request));
+        return ResponseEntity.badRequest().body(build(message, "VALIDATION_FAILED", request));
+    }
+
+    @ExceptionHandler(Exception.class)
+    public ResponseEntity<ErrorResponse> handleUnexpected(Exception ex, WebRequest request) {
+        log.error("Unhandled exception", ex);
+        return ResponseEntity.internalServerError().body(build("Internal server error", "INTERNAL_ERROR", request));
+    }
+
+    @Override
+    protected ResponseEntity<Object> handleMethodArgumentNotValid(MethodArgumentNotValidException ex,
+                                                                  HttpHeaders headers,
+                                                                  HttpStatusCode status,
+                                                                  WebRequest request) {
+        return validationFailure(ex.getBindingResult().getFieldErrors(), request);
     }
 
     /**
-     * Fallback handler for unhandled exceptions.
-     *
-     * @param ex      the unexpected exception
-     * @param request the current request
-     * @return a 500 response with a generic error message
+     * Raised instead of {@link MethodArgumentNotValidException} when the validated body is a collection,
+     * such as the list of questions accepted by the quiz API.
      */
-    @ExceptionHandler(Exception.class)
-    public ResponseEntity<ErrorResponse> handleGeneric(Exception ex, WebRequest request) {
-        log.error("Unhandled exception", ex);
-        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(build("Internal server error", "INTERNAL_ERROR", request));
+    @Override
+    protected ResponseEntity<Object> handleHandlerMethodValidationException(HandlerMethodValidationException ex,
+                                                                            HttpHeaders headers,
+                                                                            HttpStatusCode status,
+                                                                            WebRequest request) {
+        return validationFailure(ex.getAllErrors(), request);
+    }
+
+    @Override
+    protected ResponseEntity<Object> handleExceptionInternal(Exception ex,
+                                                             Object body,
+                                                             HttpHeaders headers,
+                                                             HttpStatusCode statusCode,
+                                                             WebRequest request) {
+        if (statusCode.is5xxServerError()) {
+            log.error("Request failed", ex);
+        }
+        HttpStatus status = HttpStatus.valueOf(statusCode.value());
+        return new ResponseEntity<>(build(status.getReasonPhrase(), status.name(), request), headers, statusCode);
+    }
+
+    private ResponseEntity<Object> validationFailure(List<? extends MessageSourceResolvable> errors, WebRequest request) {
+        String message = errors.stream()
+                .findFirst()
+                .map(GlobalExceptionHandler::describe)
+                .orElse("Validation failed");
+        return ResponseEntity.badRequest().body(build(message, "VALIDATION_FAILED", request));
+    }
+
+    private static String describe(MessageSourceResolvable error) {
+        return error instanceof FieldError field
+                ? field.getField() + " " + field.getDefaultMessage()
+                : error.getDefaultMessage();
+    }
+
+    private static ErrorResponse build(String message, String code, WebRequest request) {
+        String path = request instanceof ServletWebRequest servletRequest
+                ? servletRequest.getRequest().getRequestURI()
+                : null;
+        return new ErrorResponse(message, code, Instant.now(), path);
     }
 }

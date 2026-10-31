@@ -2,9 +2,6 @@ package com.csis231.api.quiz.dto;
 
 import java.time.Instant;
 
-/**
- * Lightweight quiz representation for course details.
- */
 public record QuizSummaryDto(
         Long id,
         Long courseId,
@@ -12,4 +9,5 @@ public record QuizSummaryDto(
         String description,
         int questionCount,
         Instant createdAt
-) {}
+) {
+}

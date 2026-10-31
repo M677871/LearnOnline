@@ -15,4 +15,5 @@ public record CourseDto(
         Boolean published,
         Instant createdAt,
         Instant updatedAt
-) {}
+) {
+}
