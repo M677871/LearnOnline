@@ -1,101 +1,52 @@
 package com.csis231.api.category.controller;
 
-
-
-
-import com.csis231.api.category.model.Category;
+import com.csis231.api.category.dto.CategoryDto;
+import com.csis231.api.category.dto.CategoryRequest;
 import com.csis231.api.category.service.CategoryService;
 import com.csis231.api.common.dto.PagedResponse;
-import com.csis231.api.common.exception.BadRequestException;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.web.bind.annotation.*;
-
-/**
- * REST controller exposing CRUD endpoints for {@link Category} entities.
- *
- * <p>Base path: {@code /api/categories}</p>
- */
+import com.csis231.api.common.util.Paging;
+import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequestMapping("/api/categories")
-public class CategoryController
-{
+@RequiredArgsConstructor
+public class CategoryController {
 
-    private final CategoryService svc;
-
-    /**
-     * Creates a new {@code CategoryController} with the given service.
-     *
-     * @param svc the {@link CategoryService} to delegate to
-     */
-
-    public CategoryController(CategoryService svc)
-    {
-        this.svc = svc;
-    }
-
-    /**
-     * Lists all categories.
-     *
-     * @return list of all {@link Category} entities
-     */
+    private final CategoryService categoryService;
 
     @GetMapping
-    public PagedResponse<Category> list(@RequestParam(defaultValue = "0") int page,
-                                        @RequestParam(defaultValue = "10") int size) {
-        if (size <= 0) {
-
-            throw new BadRequestException("Size must be greater than zero");
-        }
-
-        var springPage = svc.list(PageRequest.of(Math.max(0, page), size));
-        return PagedResponse.fromPage(springPage);
-    }
-    /**
-     * Retrieves a single category by its identifier.
-     *
-     * @param id the ID of the category
-     * @return the matching {@link Category}
-     */
-
-    @GetMapping("/{id}") public Category get(@PathVariable Long id)
-    {
-        return svc.get(id);
+    public PagedResponse<CategoryDto> list(@RequestParam(defaultValue = "0") int page,
+                                           @RequestParam(defaultValue = "10") int size) {
+        return categoryService.list(Paging.of(page, size));
     }
 
-    /**
-     * Creates a new category.
-     *
-     * @param category the category to create
-     * @return the persisted {@link Category}
-     */
-
-    @PostMapping public Category create(@RequestBody Category category)
-    {
-        return svc.create(category);
+    @GetMapping("/{id}")
+    public CategoryDto get(@PathVariable Long id) {
+        return categoryService.get(id);
     }
 
-    /**
-     * Updates an existing category.
-     *
-     * @param id       the ID of the category to update
-     * @param category an object containing the new name
-     * @return the updated {@link Category}
-     */
-
-    @PutMapping("/{id}") public Category update(@PathVariable Long id, @RequestBody Category category)
-    {
-        return svc.update(id, category);
+    @PostMapping
+    public CategoryDto create(@Valid @RequestBody CategoryRequest request) {
+        return categoryService.create(request);
     }
 
-    /**
-     * Deletes a category by its identifier.
-     *
-     * @param id the ID of the category to delete
-     */
+    @PutMapping("/{id}")
+    public CategoryDto update(@PathVariable Long id, @Valid @RequestBody CategoryRequest request) {
+        return categoryService.update(id, request);
+    }
 
-    @DeleteMapping("/{id}") public void delete(@PathVariable Long id)
-    {
-        svc.delete(id);
+    @DeleteMapping("/{id}")
+    public void delete(@PathVariable Long id) {
+        categoryService.delete(id);
     }
 }

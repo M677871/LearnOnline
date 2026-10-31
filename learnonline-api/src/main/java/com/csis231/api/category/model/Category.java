@@ -1,36 +1,32 @@
 package com.csis231.api.category.model;
 
-import jakarta.persistence.*;
+import jakarta.persistence.Entity;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.Table;
+import jakarta.persistence.UniqueConstraint;
 import jakarta.validation.constraints.NotBlank;
-import lombok.*;
+import lombok.AccessLevel;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
 
-/**
- * JPA entity representing a course category in the online learning platform
- * (for example "Programming", "Mathematics", "Design").
- *
- * <p>The {@code name} field is unique and used as a human-readable label
- * when grouping courses.</p>
- */
 @Entity
-@Table(
-        name = "categories",
-        uniqueConstraints = @UniqueConstraint(columnNames = "name")
-        )
-@Data
-@NoArgsConstructor
-@AllArgsConstructor
-@Builder
-@Setter
-@ToString
+@Table(name = "categories", uniqueConstraints = @UniqueConstraint(columnNames = "name"))
 @Getter
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
+@AllArgsConstructor(access = AccessLevel.PRIVATE)
+@Builder
 public class Category {
 
-    /** Primary key of the category. */
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    /** Unique name of the category shown to users. */
+    @Setter
     @NotBlank
     private String name;
 }
